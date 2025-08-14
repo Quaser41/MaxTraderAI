@@ -1,5 +1,7 @@
 """
-Minimal autonomous crypto trading bot.
+
+Minimal autonomous crypto trading bot using Yahoo Finance data.
+
 
 This code is for educational purposes only and does not constitute financial advice.
 """
@@ -7,41 +9,46 @@ from dataclasses import dataclass
 from typing import Optional
 import time
 
-import ccxt
+
 import pandas as pd
+import yfinance as yf
+
+import ccxt
+
 
 
 @dataclass
 class Config:
-    api_key: str
-    secret: str
-    symbol: str = "BTC/USDT"
+
+    symbol: str = "BTC-USD"
     timeframe: str = "1h"
-    stake: float = 0.001
-    stop_loss: float = 0.02
-    take_profit: float = 0.04
+    stake: float = 0.001  # size of simulated trade
+
 
 
 class TraderBot:
     def __init__(self, config: Config):
-        self.exchange = ccxt.binance({
-            "apiKey": config.api_key,
-            "secret": config.secret,
-            "enableRateLimit": True,
-        })
         self.config = config
 
     def fetch_candles(self) -> pd.DataFrame:
-        """Fetch recent OHLCV data."""
-        ohlcv = self.exchange.fetch_ohlcv(
-            self.config.symbol,
-            timeframe=self.config.timeframe,
-            limit=100,
+        """Fetch recent OHLCV data from Yahoo Finance."""
+        df = yf.download(
+            tickers=self.config.symbol,
+            period="7d",
+            interval=self.config.timeframe,
+            progress=False,
         )
-        df = pd.DataFrame(
-            ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
+        df = df.rename(
+            columns={
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+            }
         )
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df = df.reset_index().rename(columns={"Datetime": "timestamp", "Date": "timestamp"})
+
         return df
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
@@ -61,12 +68,10 @@ class TraderBot:
         return None
 
     def execute_trade(self, side: str) -> None:
-        """Execute a market order on the configured exchange."""
-        amount = self.config.stake
-        if side == "buy":
-            self.exchange.create_market_buy_order(self.config.symbol, amount)
-        elif side == "sell":
-            self.exchange.create_market_sell_order(self.config.symbol, amount)
+
+        """Simulate a market order."""
+        print(f"{side.upper()} {self.config.stake} {self.config.symbol}")
+
 
     def run(self) -> None:
         """Run the trading loop."""
@@ -79,7 +84,8 @@ class TraderBot:
 
 
 if __name__ == "__main__":
-    # Example usage - replace with real keys!
-    config = Config(api_key="YOUR_API_KEY", secret="YOUR_SECRET")
+
+    config = Config()
+
     bot = TraderBot(config)
     bot.run()
