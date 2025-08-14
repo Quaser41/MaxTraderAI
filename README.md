@@ -4,9 +4,7 @@ This repository explores building an autonomous cryptocurrency trading bot.
 
 ## Overview
 
-The example bot in `src/bot.py` fetches price data from [Yahoo Finance](https://finance.yahoo.com/) using the [`yfinance`](https://github.com/ranaroussi/yfinance) library and demonstrates a simple moving average crossover strategy. It logs simulated buy/sell actions rather than placing real trades.
-=======
-The example bot in `src/bot.py` connects to an exchange using the [CCXT](https://github.com/ccxt/ccxt) library and trades a simple moving average crossover strategy.
+The example bot in `src/bot.py` fetches price data from [Yahoo Finance](https://finance.yahoo.com/) using the [`yfinance`](https://github.com/ranaroussi/yfinance) library and demonstrates a simple moving average crossover strategy. A built-in paper trading account simulates trades with a starting balance of $1000 and a maximum exposure of 75% of the account. Each trade is logged to `trade_log.csv` with profit or loss and the duration the position was held.
 
 
 ## Disclaimer
@@ -26,8 +24,5 @@ pip install -r requirements.txt
 - On Windows, `start_bot.bat` installs dependencies and launches the bot.
 - Use `update.bat` to pull the latest repository changes.
 
-Adjust the configuration in `src/bot.py` with your exchange API credentials, then run:
-```bash
-python src/bot.py
-```
+Configuration such as trading pair, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`.
 
