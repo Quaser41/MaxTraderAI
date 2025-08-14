@@ -1,6 +1,6 @@
 """
 
-Minimal autonomous crypto trading bot using Yahoo Finance data.
+Minimal autonomous crypto trading bot using CCXT data.
 
 
 This code is for educational purposes only and does not constitute financial advice.
@@ -14,8 +14,6 @@ import logging
 import threading
 import pandas as pd
 import requests
-import yfinance as yf
-from yfinance.exceptions import YFPricesMissingError
 import ccxt
 
 logging.basicConfig(level=logging.INFO)
@@ -59,23 +57,14 @@ class SymbolFetcher:
                 usdt_pairs.sort(
                     key=lambda d: float(d.get("quoteVolume", 0)), reverse=True
                 )
+                exchange = ccxt.binanceus()
+                exchange.load_markets()
                 validated: List[str] = []
                 for d in usdt_pairs:
-                    symbol = d["symbol"][:-4] + "-USD"
+                    base = d["symbol"][:-4]
+                    symbol = base + "-USD"
                     try:
-                        df = yf.download(
-                            tickers=symbol,
-                            period="1d",
-                            interval="1h",
-                            progress=False,
-                            auto_adjust=False,
-                            timeout=5,
-                        )
-                        if df.empty:
-                            raise ValueError("empty data")
-                    except YFPricesMissingError:
-                        logging.info("Skipping symbol %s: missing prices", symbol)
-                        continue
+                        exchange.fetch_ticker(base + "/USDT")
                     except Exception as exc:
                         logging.info("Skipping symbol %s: %s", symbol, exc)
                         continue
@@ -218,53 +207,12 @@ class TraderBot:
         return df
 
     def fetch_candles(self) -> pd.DataFrame:
-        """Fetch recent OHLCV data from Yahoo Finance with CCXT fallback.
-
-        Data is downloaded with ``auto_adjust`` set to ``False`` to preserve the
-        raw price data returned by Yahoo Finance. Set this argument to ``True``
-        if adjusted prices (accounting for splits/dividends) are desired in the
-        future. If Yahoo Finance fails, data is fetched from the configured CCXT exchange.
-        """
-        df = pd.DataFrame()
-        for attempt in range(3):
-            try:
-                df = yf.download(
-                    tickers=self.config.symbol,
-                    period="7d",
-                    interval=self.config.timeframe,
-                    progress=False,
-                    auto_adjust=False,  # preserve raw prices for trading
-                    timeout=10,
-                )
-                if not df.empty:
-                    break
-            except Exception as exc:
-                logging.error(
-                    "Data fetch failed on attempt %s: %s", attempt + 1, exc
-                )
-                time.sleep(1)
-        if df.empty:
-            logging.info("Falling back to CCXT for candle data")
-            try:
-                df = self.fetch_candles_ccxt(self.config.exchange)
-            except Exception as exc:
-                logging.error("CCXT data fetch failed: %s", exc)
-                return pd.DataFrame()
-        else:
-            df = df.rename(
-                columns={
-                    "Open": "open",
-                    "High": "high",
-                    "Low": "low",
-                    "Close": "close",
-                    "Volume": "volume",
-                }
-            )
-            df = df.reset_index().rename(
-                columns={"Datetime": "timestamp", "Date": "timestamp"}
-            )
-
-        return df
+        """Fetch recent OHLCV data from the configured exchange via CCXT."""
+        try:
+            return self.fetch_candles_ccxt(self.config.exchange)
+        except Exception as exc:
+            logging.error("CCXT data fetch failed: %s", exc)
+            return pd.DataFrame()
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
         """Generate a simple moving average crossover signal."""
