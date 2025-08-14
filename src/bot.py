@@ -10,10 +10,11 @@ from typing import Optional, List, Dict
 import time
 import csv
 import os
-
-
+import logging
 import pandas as pd
 import yfinance as yf
+
+logging.basicConfig(level=logging.INFO)
 
 
 @dataclass
@@ -106,13 +107,26 @@ class TraderBot:
         if adjusted prices (accounting for splits/dividends) are desired in the
         future.
         """
-        df = yf.download(
-            tickers=self.config.symbol,
-            period="7d",
-            interval=self.config.timeframe,
-            progress=False,
-            auto_adjust=False,  # preserve raw prices for trading
-        )
+        df = pd.DataFrame()
+        for attempt in range(3):
+            try:
+                df = yf.download(
+                    tickers=self.config.symbol,
+                    period="7d",
+                    interval=self.config.timeframe,
+                    progress=False,
+                    auto_adjust=False,  # preserve raw prices for trading
+                    timeout=10,
+                )
+                break
+            except Exception as exc:
+                logging.error(
+                    "Data fetch failed on attempt %s: %s", attempt + 1, exc
+                )
+                time.sleep(1)
+        if df.empty:
+            logging.error("No data fetched; skipping cycle.")
+            return df
         df = df.rename(
             columns={
                 "Open": "open",
@@ -153,6 +167,9 @@ class TraderBot:
         """Run the trading loop."""
         while True:
             df = self.fetch_candles()
+            if df.empty:
+                time.sleep(60)
+                continue
             signal = self.generate_signal(df)
             price = df["close"].iloc[-1]
             timestamp = df["timestamp"].iloc[-1]
