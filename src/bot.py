@@ -26,6 +26,9 @@ class Config:
     stake: float = 0.001  # trade size in asset units
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
+    stop_loss_pct: float = 0.02  # 2% stop loss
+    take_profit_pct: float = 0.04  # 4% take profit target
+    max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
 
 
 class PaperAccount:
@@ -37,6 +40,7 @@ class PaperAccount:
         self.max_exposure = max_exposure
         self.position: Optional[Dict] = None
         self.log: List[Dict] = []
+        self.peak_balance = balance
 
     def _log_to_file(self, entry: Dict) -> None:
         path = "trade_log.csv"
@@ -50,13 +54,27 @@ class PaperAccount:
                 writer.writeheader()
             writer.writerow(entry)
 
-    def buy(self, price: float, amount: float, timestamp: pd.Timestamp) -> bool:
+    def buy(
+        self,
+        price: float,
+        amount: float,
+        timestamp: pd.Timestamp,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+    ) -> bool:
         cost = price * amount
         if cost > self.initial_balance * self.max_exposure or cost > self.balance:
             print("Buy skipped: exposure limit or insufficient balance")
             return False
         self.balance -= cost
-        self.position = {"price": price, "amount": amount, "timestamp": timestamp}
+        self.position = {
+            "price": price,
+            "amount": amount,
+            "timestamp": timestamp,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+        }
+        self.peak_balance = max(self.peak_balance, self.balance)
         entry = {
             "timestamp": timestamp.isoformat(),
             "side": "buy",
@@ -77,6 +95,7 @@ class PaperAccount:
         entry_price = self.position["price"]
         profit = (price - entry_price) * amount
         self.balance += price * amount
+        self.peak_balance = max(self.peak_balance, self.balance)
         duration = timestamp - self.position["timestamp"]
         entry = {
             "timestamp": timestamp.isoformat(),
@@ -92,7 +111,22 @@ class PaperAccount:
             f"SELL {amount} at {price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
         )
         self.position = None
+        self.print_performance()
         return True
+
+    def current_drawdown(self) -> float:
+        return (self.peak_balance - self.balance) / self.peak_balance
+
+    def print_performance(self) -> None:
+        sells = [t for t in self.log if t["side"] == "sell"]
+        if not sells:
+            return
+        net_profit = self.balance - self.initial_balance
+        wins = [t for t in sells if t["profit"] > 0]
+        win_rate = len(wins) / len(sells) * 100
+        print(
+            f"Trades: {len(sells)} | Net Profit: {net_profit:.2f} | Win rate: {win_rate:.1f}%"
+        )
 
 
 class TraderBot:
@@ -183,7 +217,11 @@ class TraderBot:
     def execute_trade(self, side: str, price: float, timestamp: pd.Timestamp) -> None:
         """Execute a paper trade through the PaperAccount."""
         if side == "buy":
-            self.account.buy(price, self.config.stake, timestamp)
+            stop = price * (1 - self.config.stop_loss_pct)
+            target = price * (1 + self.config.take_profit_pct)
+            self.account.buy(
+                price, self.config.stake, timestamp, stop_loss=stop, take_profit=target
+            )
         elif side == "sell":
             self.account.sell(price, self.config.stake, timestamp)
 
@@ -194,11 +232,23 @@ class TraderBot:
             if df.empty:
                 time.sleep(60)
                 continue
-            signal = self.generate_signal(df)
             price = df["close"].iloc[-1]
             timestamp = df["timestamp"].iloc[-1]
+            if self.account.position:
+                pos = self.account.position
+                if (
+                    pos.get("stop_loss") is not None and price <= pos["stop_loss"]
+                ) or (
+                    pos.get("take_profit") is not None and price >= pos["take_profit"]
+                ):
+                    self.account.sell(price, pos["amount"], timestamp)
+                    continue
+            signal = self.generate_signal(df)
             if signal:
                 self.execute_trade(signal, price, timestamp)
+            if self.account.current_drawdown() > self.config.max_drawdown_pct:
+                print("Max drawdown exceeded. Stopping bot.")
+                break
             time.sleep(60)
 
 
