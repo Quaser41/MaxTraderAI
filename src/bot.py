@@ -26,6 +26,7 @@ class Config:
 
     symbol: str = "BTC-USD"
     timeframe: str = "1h"
+    exchange: str = "binanceus"
     stake: float = 0.001  # trade size in asset units
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
@@ -194,9 +195,16 @@ class TraderBot:
         self.symbol_fetcher = SymbolFetcher()
         self.symbol_fetcher.start()
 
-    def fetch_candles_ccxt(self) -> pd.DataFrame:
-        """Fetch recent OHLCV data from Binance via CCXT."""
-        exchange = ccxt.binance()
+    def fetch_candles_ccxt(self, exchange_name: str = "binanceus") -> pd.DataFrame:
+        """Fetch recent OHLCV data from an exchange via CCXT.
+
+        Parameters
+        ----------
+        exchange_name: str, optional
+            Name of the exchange from the CCXT library. Defaults to ``"binanceus"``.
+        """
+        exchange_class = getattr(ccxt, exchange_name)
+        exchange = exchange_class()
         symbol = self.config.symbol.replace("-", "/")
         if symbol.endswith("USD"):
             symbol = symbol[:-3] + "/USDT"
@@ -215,7 +223,7 @@ class TraderBot:
         Data is downloaded with ``auto_adjust`` set to ``False`` to preserve the
         raw price data returned by Yahoo Finance. Set this argument to ``True``
         if adjusted prices (accounting for splits/dividends) are desired in the
-        future. If Yahoo Finance fails, data is fetched from Binance via CCXT.
+        future. If Yahoo Finance fails, data is fetched from the configured CCXT exchange.
         """
         df = pd.DataFrame()
         for attempt in range(3):
@@ -238,7 +246,7 @@ class TraderBot:
         if df.empty:
             logging.info("Falling back to CCXT for candle data")
             try:
-                df = self.fetch_candles_ccxt()
+                df = self.fetch_candles_ccxt(self.config.exchange)
             except Exception as exc:
                 logging.error("CCXT data fetch failed: %s", exc)
                 return pd.DataFrame()

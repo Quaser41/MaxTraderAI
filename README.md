@@ -24,5 +24,5 @@ pip install -r requirements.txt
 - On Windows, `start_bot.bat` installs dependencies and launches the bot.
 - Use `update.bat` to pull the latest repository changes.
 
-Configuration such as trading pair, stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`.
+Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides fallback price data.
 
