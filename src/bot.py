@@ -11,7 +11,9 @@ import time
 import csv
 import os
 import logging
+import threading
 import pandas as pd
+import requests
 import yfinance as yf
 import ccxt
 
@@ -29,6 +31,39 @@ class Config:
     stop_loss_pct: float = 0.02  # 2% stop loss
     take_profit_pct: float = 0.04  # 4% take profit target
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
+
+
+
+class SymbolFetcher:
+    """Background thread that refreshes top-volume symbols from BinanceUS."""
+
+    def __init__(self, refresh: int = 3600, limit: int = 10) -> None:
+        self.refresh = refresh
+        self.limit = limit
+        self.symbols: List[str] = []
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _run(self) -> None:
+        while True:
+            try:
+                resp = requests.get(
+                    "https://api.binance.us/api/v3/ticker/24hr", timeout=10
+                )
+                data = resp.json()
+                usdt_pairs = [d for d in data if d.get("symbol", "").endswith("USDT")]
+                usdt_pairs.sort(
+                    key=lambda d: float(d.get("quoteVolume", 0)), reverse=True
+                )
+                self.symbols = [
+                    d["symbol"][:-4] + "-USD" for d in usdt_pairs[: self.limit]
+                ]
+                logging.info("Fetched symbols: %s", ", ".join(self.symbols))
+            except Exception as exc:
+                logging.error("Symbol fetch failed: %s", exc)
+            time.sleep(self.refresh)
 
 
 class PaperAccount:
@@ -133,6 +168,8 @@ class TraderBot:
     def __init__(self, config: Config):
         self.config = config
         self.account = PaperAccount(config.starting_balance, config.max_exposure)
+        self.symbol_fetcher = SymbolFetcher()
+        self.symbol_fetcher.start()
 
     def fetch_candles_ccxt(self) -> pd.DataFrame:
         """Fetch recent OHLCV data from Binance via CCXT."""
@@ -228,27 +265,32 @@ class TraderBot:
     def run(self) -> None:
         """Run the trading loop."""
         while True:
-            df = self.fetch_candles()
-            if df.empty:
-                time.sleep(60)
-                continue
-            price = df["close"].iloc[-1]
-            timestamp = df["timestamp"].iloc[-1]
-            if self.account.position:
-                pos = self.account.position
-                if (
-                    pos.get("stop_loss") is not None and price <= pos["stop_loss"]
-                ) or (
-                    pos.get("take_profit") is not None and price >= pos["take_profit"]
-                ):
-                    self.account.sell(price, pos["amount"], timestamp)
+            symbols = self.symbol_fetcher.symbols or [self.config.symbol]
+            for symbol in symbols:
+                self.config.symbol = symbol
+                df = self.fetch_candles()
+                if df.empty:
+                    time.sleep(1)
                     continue
-            signal = self.generate_signal(df)
-            if signal:
-                self.execute_trade(signal, price, timestamp)
-            if self.account.current_drawdown() > self.config.max_drawdown_pct:
-                print("Max drawdown exceeded. Stopping bot.")
-                break
+                price = df["close"].iloc[-1]
+                timestamp = df["timestamp"].iloc[-1]
+                if self.account.position:
+                    pos = self.account.position
+                    if (
+                        pos.get("stop_loss") is not None and price <= pos["stop_loss"]
+                    ) or (
+                        pos.get("take_profit") is not None
+                        and price >= pos["take_profit"]
+                    ):
+                        self.account.sell(price, pos["amount"], timestamp)
+                        continue
+                signal = self.generate_signal(df)
+                if signal:
+                    self.execute_trade(signal, price, timestamp)
+                if self.account.current_drawdown() > self.config.max_drawdown_pct:
+                    print("Max drawdown exceeded. Stopping bot.")
+                    return
+                time.sleep(1)
             time.sleep(60)
 
 
