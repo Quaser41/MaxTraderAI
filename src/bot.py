@@ -99,12 +99,19 @@ class TraderBot:
         self.account = PaperAccount(config.starting_balance, config.max_exposure)
 
     def fetch_candles(self) -> pd.DataFrame:
-        """Fetch recent OHLCV data from Yahoo Finance."""
+        """Fetch recent OHLCV data from Yahoo Finance.
+
+        Data is downloaded with ``auto_adjust`` set to ``False`` to preserve the
+        raw price data returned by Yahoo Finance. Set this argument to ``True``
+        if adjusted prices (accounting for splits/dividends) are desired in the
+        future.
+        """
         df = yf.download(
             tickers=self.config.symbol,
             period="7d",
             interval=self.config.timeframe,
             progress=False,
+            auto_adjust=False,  # preserve raw prices for trading
         )
         df = df.rename(
             columns={
