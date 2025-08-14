@@ -1,5 +1,7 @@
 """
+
 Minimal autonomous crypto trading bot using Yahoo Finance data.
+
 
 This code is for educational purposes only and does not constitute financial advice.
 """
@@ -7,15 +9,21 @@ from dataclasses import dataclass
 from typing import Optional
 import time
 
+
 import pandas as pd
 import yfinance as yf
+
+import ccxt
+
 
 
 @dataclass
 class Config:
+
     symbol: str = "BTC-USD"
     timeframe: str = "1h"
     stake: float = 0.001  # size of simulated trade
+
 
 
 class TraderBot:
@@ -40,6 +48,7 @@ class TraderBot:
             }
         )
         df = df.reset_index().rename(columns={"Datetime": "timestamp", "Date": "timestamp"})
+
         return df
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
@@ -59,8 +68,10 @@ class TraderBot:
         return None
 
     def execute_trade(self, side: str) -> None:
+
         """Simulate a market order."""
         print(f"{side.upper()} {self.config.stake} {self.config.symbol}")
+
 
     def run(self) -> None:
         """Run the trading loop."""
@@ -73,6 +84,8 @@ class TraderBot:
 
 
 if __name__ == "__main__":
+
     config = Config()
+
     bot = TraderBot(config)
     bot.run()
