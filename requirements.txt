@@ -1,5 +1,4 @@
-
 pandas
 yfinance
 ccxt
-
+requests
