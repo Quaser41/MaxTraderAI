@@ -15,6 +15,7 @@ import threading
 import pandas as pd
 import requests
 import yfinance as yf
+from yfinance.exceptions import YFPricesMissingError
 import ccxt
 
 logging.basicConfig(level=logging.INFO)
@@ -57,10 +58,32 @@ class SymbolFetcher:
                 usdt_pairs.sort(
                     key=lambda d: float(d.get("quoteVolume", 0)), reverse=True
                 )
-                self.symbols = [
-                    d["symbol"][:-4] + "-USD" for d in usdt_pairs[: self.limit]
-                ]
-                logging.info("Fetched symbols: %s", ", ".join(self.symbols))
+                validated: List[str] = []
+                for d in usdt_pairs:
+                    symbol = d["symbol"][:-4] + "-USD"
+                    try:
+                        df = yf.download(
+                            tickers=symbol,
+                            period="1d",
+                            interval="1h",
+                            progress=False,
+                            auto_adjust=False,
+                            timeout=5,
+                        )
+                        if df.empty:
+                            raise ValueError("empty data")
+                    except YFPricesMissingError:
+                        logging.info("Skipping symbol %s: missing prices", symbol)
+                        continue
+                    except Exception as exc:
+                        logging.info("Skipping symbol %s: %s", symbol, exc)
+                        continue
+                    validated.append(symbol)
+                    if len(validated) >= self.limit:
+                        break
+                self.symbols = validated
+                if self.symbols:
+                    logging.info("Fetched symbols: %s", ", ".join(self.symbols))
             except Exception as exc:
                 logging.error("Symbol fetch failed: %s", exc)
             time.sleep(self.refresh)
