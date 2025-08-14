@@ -196,7 +196,7 @@ class TraderBot:
         exchange = exchange_class()
         symbol = self.config.symbol.replace("-", "/")
         if symbol.endswith("USD"):
-            symbol = symbol[:-3] + "/USDT"
+            symbol = symbol[:-3] + "USDT"
         data = exchange.fetch_ohlcv(
             symbol=symbol, timeframe=self.config.timeframe, limit=100
         )
