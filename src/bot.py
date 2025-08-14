@@ -13,6 +13,7 @@ import os
 import logging
 import pandas as pd
 import yfinance as yf
+import ccxt
 
 logging.basicConfig(level=logging.INFO)
 
@@ -99,13 +100,28 @@ class TraderBot:
         self.config = config
         self.account = PaperAccount(config.starting_balance, config.max_exposure)
 
+    def fetch_candles_ccxt(self) -> pd.DataFrame:
+        """Fetch recent OHLCV data from Binance via CCXT."""
+        exchange = ccxt.binance()
+        symbol = self.config.symbol.replace("-", "/")
+        if symbol.endswith("USD"):
+            symbol = symbol[:-3] + "/USDT"
+        data = exchange.fetch_ohlcv(
+            symbol=symbol, timeframe=self.config.timeframe, limit=100
+        )
+        df = pd.DataFrame(
+            data, columns=["timestamp", "open", "high", "low", "close", "volume"]
+        )
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        return df
+
     def fetch_candles(self) -> pd.DataFrame:
-        """Fetch recent OHLCV data from Yahoo Finance.
+        """Fetch recent OHLCV data from Yahoo Finance with CCXT fallback.
 
         Data is downloaded with ``auto_adjust`` set to ``False`` to preserve the
         raw price data returned by Yahoo Finance. Set this argument to ``True``
         if adjusted prices (accounting for splits/dividends) are desired in the
-        future.
+        future. If Yahoo Finance fails, data is fetched from Binance via CCXT.
         """
         df = pd.DataFrame()
         for attempt in range(3):
@@ -118,25 +134,33 @@ class TraderBot:
                     auto_adjust=False,  # preserve raw prices for trading
                     timeout=10,
                 )
-                break
+                if not df.empty:
+                    break
             except Exception as exc:
                 logging.error(
                     "Data fetch failed on attempt %s: %s", attempt + 1, exc
                 )
                 time.sleep(1)
         if df.empty:
-            logging.error("No data fetched; skipping cycle.")
-            return df
-        df = df.rename(
-            columns={
-                "Open": "open",
-                "High": "high",
-                "Low": "low",
-                "Close": "close",
-                "Volume": "volume",
-            }
-        )
-        df = df.reset_index().rename(columns={"Datetime": "timestamp", "Date": "timestamp"})
+            logging.info("Falling back to CCXT for candle data")
+            try:
+                df = self.fetch_candles_ccxt()
+            except Exception as exc:
+                logging.error("CCXT data fetch failed: %s", exc)
+                return pd.DataFrame()
+        else:
+            df = df.rename(
+                columns={
+                    "Open": "open",
+                    "High": "high",
+                    "Low": "low",
+                    "Close": "close",
+                    "Volume": "volume",
+                }
+            )
+            df = df.reset_index().rename(
+                columns={"Datetime": "timestamp", "Date": "timestamp"}
+            )
 
         return df
 
