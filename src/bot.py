@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 class Config:
 
     symbol: str = "BTC-USD"
-    timeframe: str = "1h"
+    timeframe: str = "1m"
     exchange: str = "binanceus"
     stake: float = 0.001  # trade size in asset units
     starting_balance: float = 1000.0
@@ -31,6 +31,8 @@ class Config:
     stop_loss_pct: float = 0.02  # 2% stop loss
     take_profit_pct: float = 0.04  # 4% take profit target
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
+    ema_fast_span: int = 12  # fast EMA span for crossover
+    ema_slow_span: int = 26  # slow EMA span for crossover
 
 
 
@@ -216,8 +218,8 @@ class TraderBot:
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
         """Generate a simple moving average crossover signal."""
-        df["ema_fast"] = df["close"].ewm(span=12).mean()
-        df["ema_slow"] = df["close"].ewm(span=26).mean()
+        df["ema_fast"] = df["close"].ewm(span=self.config.ema_fast_span).mean()
+        df["ema_slow"] = df["close"].ewm(span=self.config.ema_slow_span).mean()
         if (
             df["ema_fast"].iloc[-1] > df["ema_slow"].iloc[-1]
             and df["ema_fast"].iloc[-2] <= df["ema_slow"].iloc[-2]

@@ -28,3 +28,11 @@ pip install -r requirements.txt
 
 Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
+To control how often the strategy trades, adjust the `timeframe` along with the `ema_fast_span` and `ema_slow_span` settings in `Config`. Shorter timeframes like `"1m"` or `"5m"` provide more frequent price updates, while smaller EMA spans make crossovers more responsive. These tweaks are useful to trigger trades during brief test runs. For example:
+
+```python
+Config(timeframe="1m", ema_fast_span=5, ema_slow_span=15)
+```
+
+Use longer spans or higher timeframes for slower, more deliberate trading.
+
