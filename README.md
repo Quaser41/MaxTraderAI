@@ -4,13 +4,15 @@ This repository explores building an autonomous cryptocurrency trading bot.
 
 ## Overview
 
-The example bot in `src/bot.py` fetches price data from [Yahoo Finance](https://finance.yahoo.com/) using the [`yfinance`](https://github.com/ranaroussi/yfinance) library and demonstrates a simple moving average crossover strategy. A built-in paper trading account simulates trades with a starting balance of $1000 and a maximum exposure of 75% of the account. Each trade is logged to `trade_log.csv` with profit or loss and the duration the position was held.  Stop‑loss and take‑profit levels are applied to every position, and the bot halts if account drawdown exceeds a configurable threshold.
+The example bot in `src/bot.py` fetches price data from cryptocurrency exchanges via the [`ccxt`](https://github.com/ccxt/ccxt) library (default `binanceus`) and demonstrates a simple moving average crossover strategy. A built-in paper trading account simulates trades with a starting balance of $1000 and a maximum exposure of 75% of the account. Each trade is logged to `trade_log.csv` with profit or loss and the duration the position was held. Stop‑loss and take‑profit levels are applied to every position, and the bot halts if account drawdown exceeds a configurable threshold.
 
 
 ## Disclaimer
 This project is for educational purposes only and does not constitute financial or investment advice. Use at your own risk.
 
 ## Installation
+Install dependencies, including `ccxt`, with:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -24,5 +26,5 @@ pip install -r requirements.txt
 - On Windows, `start_bot.bat` installs dependencies and launches the bot.
 - Use `update.bat` to pull the latest repository changes.
 
-Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides fallback price data.
+Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
