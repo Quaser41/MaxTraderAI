@@ -36,6 +36,8 @@ class Config:
     drawdown_cooldown: int = 300  # seconds to pause after max drawdown
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
+    pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
+    min_profit_threshold: float = 0.0  # minimum profit to keep trading a symbol
 
 
 
@@ -226,6 +228,25 @@ class PaperAccount:
             else 0.0
         )
 
+    def pnl_by_symbol(self, window: Optional[int] = None) -> Dict[str, float]:
+        """Return cumulative PnL for each symbol.
+
+        Parameters
+        ----------
+        window: int, optional
+            Only the last ``window`` closed trades per symbol are included.
+        """
+        sells = [t for t in self.log if t["side"] == "sell"]
+        profits: Dict[str, List[float]] = {}
+        for t in sells:
+            profits.setdefault(t["symbol"], []).append(float(t["profit"]))
+        pnl: Dict[str, float] = {}
+        for sym, values in profits.items():
+            if window:
+                values = values[-window:]
+            pnl[sym] = sum(values)
+        return pnl
+
     def print_performance(self) -> None:
         sells = [t for t in self.log if t["side"] == "sell"]
         if not sells:
@@ -234,9 +255,15 @@ class PaperAccount:
         net_profit = equity - self.initial_balance
         wins = [t for t in sells if t["profit"] > 0]
         win_rate = len(wins) / len(sells) * 100
+        symbol_pnl = self.pnl_by_symbol()
+        pnl_str = " | ".join(
+            f"{sym}: {pnl:.2f}" for sym, pnl in symbol_pnl.items()
+        )
         print(
             f"Trades: {len(sells)} | Net Profit: {net_profit:.2f} | Win rate: {win_rate:.1f}%"
         )
+        if pnl_str:
+            print(f"PnL by symbol: {pnl_str}")
 
     def print_summary(self) -> None:
         """Print a brief account summary."""
@@ -350,6 +377,15 @@ class TraderBot:
             for symbol in symbols:
                 if not symbol:
                     logging.warning("Encountered empty symbol; skipping trade execution")
+                    continue
+                pnl = self.account.pnl_by_symbol(self.config.pnl_window).get(symbol, 0.0)
+                if pnl < self.config.min_profit_threshold:
+                    logging.info(
+                        "Skipping %s due to PnL %.2f below threshold %.2f",
+                        symbol,
+                        pnl,
+                        self.config.min_profit_threshold,
+                    )
                     continue
                 self.config.symbol = symbol
                 df = self.fetch_candles()
