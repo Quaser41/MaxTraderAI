@@ -281,19 +281,23 @@ class TraderBot:
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
         if side == "buy":
-            amount = self.config.stake_usd / price
-            stop = price * (1 - self.config.stop_loss_pct)
-            target = price * (1 + self.config.take_profit_pct)
-            self.account.buy(
-                price,
-                amount,
-                timestamp,
-                symbol,
-                stop_loss=stop,
-                take_profit=target,
-            )
+            if symbol not in self.account.positions:
+                amount = self.config.stake_usd / price
+                stop = price * (1 - self.config.stop_loss_pct)
+                target = price * (1 + self.config.take_profit_pct)
+                self.account.buy(
+                    price,
+                    amount,
+                    timestamp,
+                    symbol,
+                    stop_loss=stop,
+                    take_profit=target,
+                )
+            else:
+                logging.info("Buy skipped: position already open for %s", symbol)
         elif side == "sell":
-            if symbol in self.account.positions:
+            pos = self.account.positions.get(symbol)
+            if pos:
                 self.account.sell(price, timestamp, symbol)
 
     def run(self) -> None:
@@ -320,8 +324,10 @@ class TraderBot:
                         self.account.sell(price, timestamp, symbol)
                         continue
                 signal = self.generate_signal(df)
-                if signal:
-                    self.execute_trade(signal, price, timestamp, symbol)
+                if signal == "buy" and not pos:
+                    self.execute_trade("buy", price, timestamp, symbol)
+                elif signal == "sell" and pos:
+                    self.execute_trade("sell", price, timestamp, symbol)
                 pos = self.account.positions.get(symbol)
                 if (
                     pos
@@ -367,9 +373,7 @@ if __name__ == "__main__":
         if bot.account.positions:
             logging.info("Attempting to close open positions on exit.")
             try:
-                original_symbol = bot.config.symbol
                 for pos_symbol in list(bot.account.positions.keys()):
-                    bot.config.symbol = pos_symbol
                     df = bot.fetch_candles(pos_symbol)
                     if not df.empty:
                         price = df["close"].iloc[-1]
@@ -384,5 +388,3 @@ if __name__ == "__main__":
                         )
             except Exception as exc:
                 logging.error("Exception during cleanup: %s", exc)
-            finally:
-                bot.config.symbol = original_symbol
