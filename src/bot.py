@@ -38,6 +38,9 @@ class Config:
     summary_interval: int = 300  # seconds between status summaries
     pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
     min_profit_threshold: float = 0.0  # minimum profit to keep trading a symbol
+    fee_pct: float = 0.0  # exchange fee percentage applied on sells
+    trailing_stop_pct: float = 0.0  # percentage for trailing stop (0 to disable)
+    max_holding_minutes: int = 60  # maximum duration to hold a position
 
 
 
@@ -138,6 +141,7 @@ class PaperAccount:
         symbol: str,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
+        trailing_stop_pct: Optional[float] = None,
     ) -> bool:
         cost = price * amount
         logging.info(
@@ -161,6 +165,8 @@ class PaperAccount:
             "symbol": symbol,
             "stop_loss": stop_loss,
             "take_profit": take_profit,
+            "highest_price": price,
+            "trailing_stop_pct": trailing_stop_pct,
         }
         self.peak_balance = max(self.peak_balance, self.balance)
         entry = {
@@ -180,7 +186,12 @@ class PaperAccount:
         return True
 
     def sell(
-        self, price: float, timestamp: pd.Timestamp, symbol: str
+        self,
+        price: float,
+        timestamp: pd.Timestamp,
+        symbol: str,
+        fee_pct: float = 0.0,
+        trailing_stop: Optional[float] = None,
     ) -> bool:
         pos = self.positions.get(symbol)
         if not pos:
@@ -188,15 +199,19 @@ class PaperAccount:
             return False
         amount = pos["amount"]
         entry_price = pos["price"]
-        profit = (price - entry_price) * amount
-        self.balance += price * amount
+        exit_price = price
+        if trailing_stop is not None and trailing_stop < exit_price:
+            exit_price = trailing_stop
+        fee = exit_price * amount * fee_pct
+        profit = (exit_price - entry_price) * amount - fee
+        self.balance += exit_price * amount - fee
         self.peak_balance = max(self.peak_balance, self.balance)
         duration = timestamp - pos["timestamp"]
         entry = {
             "timestamp": timestamp.isoformat(),
             "symbol": symbol,
             "side": "sell",
-            "price": price,
+            "price": exit_price,
             "amount": amount,
             "profit": profit,
             "duration": duration.total_seconds(),
@@ -204,7 +219,7 @@ class PaperAccount:
         self.log.append(entry)
         self._log_to_file(entry)
         print(
-            f"SELL {symbol} {amount} at {price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
+            f"SELL {symbol} {amount} at {exit_price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
         )
         del self.positions[symbol]
         self.print_performance()
@@ -360,13 +375,14 @@ class TraderBot:
                     symbol=symbol,
                     stop_loss=stop,
                     take_profit=target,
+                    trailing_stop_pct=self.config.trailing_stop_pct,
                 )
             else:
                 logging.info("Buy skipped: position already open for %s", symbol)
         elif side == "sell":
             pos = self.account.positions.get(symbol)
             if pos:
-                self.account.sell(price, timestamp, symbol)
+                self.account.sell(price, timestamp, symbol, self.config.fee_pct)
 
     def run(self) -> None:
         """Run the trading loop."""
@@ -396,13 +412,37 @@ class TraderBot:
                 timestamp = df["timestamp"].iloc[-1]
                 pos = self.account.positions.get(symbol)
                 if pos:
+                    pos["highest_price"] = max(
+                        pos.get("highest_price", pos["price"]), price
+                    )
+                    trail_pct = pos.get("trailing_stop_pct")
+                    trailing_stop_price = (
+                        pos["highest_price"] * (1 - trail_pct) if trail_pct else None
+                    )
                     if (
-                        pos.get("stop_loss") is not None and price <= pos["stop_loss"]
-                    ) or (
-                        pos.get("take_profit") is not None
-                        and price >= pos["take_profit"]
+                        (pos.get("stop_loss") is not None and price <= pos["stop_loss"])
+                        or (
+                            pos.get("take_profit") is not None
+                            and price >= pos["take_profit"]
+                        )
+                        or (
+                            trailing_stop_price is not None
+                            and price <= trailing_stop_price
+                        )
                     ):
-                        self.account.sell(price, timestamp, symbol)
+                        self.account.sell(
+                            price,
+                            timestamp,
+                            symbol,
+                            self.config.fee_pct,
+                            trailing_stop=trailing_stop_price,
+                        )
+                        continue
+                    max_age = pd.Timedelta(minutes=self.config.max_holding_minutes)
+                    if timestamp - pos["timestamp"] > max_age:
+                        self.account.sell(
+                            price, timestamp, symbol, self.config.fee_pct
+                        )
                         continue
                 signal = self.generate_signal(df)
                 if signal == "buy" and not pos:
@@ -423,7 +463,9 @@ class TraderBot:
                     else:
                         exit_price = price
                         exit_time = timestamp
-                    if not self.account.sell(exit_price, exit_time, symbol):
+                    if not self.account.sell(
+                        exit_price, exit_time, symbol, self.config.fee_pct
+                    ):
                         logging.warning(
                             "Position remains open after drawdown trigger.",
                         )
@@ -462,7 +504,9 @@ if __name__ == "__main__":
                     if not df.empty:
                         price = df["close"].iloc[-1]
                         timestamp = df["timestamp"].iloc[-1]
-                        if not bot.account.sell(price, timestamp, pos_symbol):
+                        if not bot.account.sell(
+                            price, timestamp, pos_symbol, bot.config.fee_pct
+                        ):
                             logging.warning(
                                 "Open position could not be closed on exit.",
                             )
