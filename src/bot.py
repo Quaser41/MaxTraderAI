@@ -35,6 +35,7 @@ class Config:
     ema_slow_span: int = 26  # slow EMA span for crossover
     drawdown_cooldown: int = 300  # seconds to pause after max drawdown
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
+    summary_interval: int = 300  # seconds between status summaries
 
 
 
@@ -216,6 +217,18 @@ class PaperAccount:
             f"Trades: {len(sells)} | Net Profit: {net_profit:.2f} | Win rate: {win_rate:.1f}%"
         )
 
+    def print_summary(self) -> None:
+        """Print a brief account summary."""
+        open_trades = len(self.positions)
+        closed_trades = len([t for t in self.log if t["side"] == "sell"])
+        profit_loss = self.balance - self.initial_balance
+        print(
+            f"Balance: {self.balance:.2f} | "
+            f"Open trades: {open_trades} | "
+            f"Closed trades: {closed_trades} | "
+            f"PnL: {profit_loss:.2f}"
+        )
+
 
 class TraderBot:
     def __init__(self, config: Config):
@@ -225,6 +238,7 @@ class TraderBot:
         )
         self.symbol_fetcher = SymbolFetcher()
         self.symbol_fetcher.start()
+        self.last_summary = time.time()
 
     def fetch_candles_ccxt(
         self, exchange_name: str = "binanceus", symbol: Optional[str] = None
@@ -356,8 +370,11 @@ class TraderBot:
                     paused = True
                     break
                 time.sleep(1)
-            if not paused:
-                time.sleep(60)
+        if time.time() - self.last_summary >= self.config.summary_interval:
+            self.account.print_summary()
+            self.last_summary = time.time()
+        if not paused:
+            time.sleep(60)
 
 
 if __name__ == "__main__":
