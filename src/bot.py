@@ -152,11 +152,12 @@ class PaperAccount:
         return True
 
     def sell(
-        self, price: float, amount: float, timestamp: pd.Timestamp, symbol: str
+        self, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> bool:
         if not self.position or self.position.get("symbol") != symbol:
             print("Sell skipped: no matching open position")
             return False
+        amount = self.position["amount"]
         entry_price = self.position["price"]
         profit = (price - entry_price) * amount
         self.balance += price * amount
@@ -269,8 +270,8 @@ class TraderBot:
         self, side: str, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
-        amount = self.config.stake_usd / price
         if side == "buy":
+            amount = self.config.stake_usd / price
             stop = price * (1 - self.config.stop_loss_pct)
             target = price * (1 + self.config.take_profit_pct)
             self.account.buy(
@@ -283,7 +284,8 @@ class TraderBot:
             )
         elif side == "sell":
             if self.account.position and self.account.position.get("symbol") == symbol:
-                self.account.sell(price, amount, timestamp, symbol)
+                amount = self.account.position["amount"]
+                self.account.sell(price, timestamp, symbol)
 
     def run(self) -> None:
         """Run the trading loop."""
@@ -308,7 +310,7 @@ class TraderBot:
                         pos.get("take_profit") is not None
                         and price >= pos["take_profit"]
                     ):
-                        self.account.sell(price, pos["amount"], timestamp, symbol)
+                        self.account.sell(price, timestamp, symbol)
                         continue
                 signal = self.generate_signal(df)
                 if signal:
@@ -328,7 +330,7 @@ class TraderBot:
                         exit_price = price
                         exit_time = timestamp
                     if not self.account.sell(
-                        exit_price, pos["amount"], exit_time, pos["symbol"]
+                        exit_price, exit_time, pos["symbol"]
                     ):
                         logging.warning(
                             "Position remains open after drawdown trigger.",
@@ -360,7 +362,7 @@ if __name__ == "__main__":
                     timestamp = df["timestamp"].iloc[-1]
                     pos = bot.account.position
                     if not bot.account.sell(
-                        price, pos["amount"], timestamp, pos_symbol
+                        price, timestamp, pos_symbol
                     ):
                         logging.warning(
                             "Open position could not be closed on exit.",
