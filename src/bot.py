@@ -215,21 +215,25 @@ class TraderBot:
         self.symbol_fetcher = SymbolFetcher()
         self.symbol_fetcher.start()
 
-    def fetch_candles_ccxt(self, exchange_name: str = "binanceus") -> pd.DataFrame:
+    def fetch_candles_ccxt(
+        self, exchange_name: str = "binanceus", symbol: Optional[str] = None
+    ) -> pd.DataFrame:
         """Fetch recent OHLCV data from an exchange via CCXT.
 
         Parameters
         ----------
         exchange_name: str, optional
             Name of the exchange from the CCXT library. Defaults to ``"binanceus"``.
+        symbol: str, optional
+            Trading pair in "BASE-QUOTE" format. Defaults to ``self.config.symbol``.
         """
         exchange_class = getattr(ccxt, exchange_name)
         exchange = exchange_class()
-        symbol = self.config.symbol.replace("-", "/")
-        if symbol.endswith("USD"):
-            symbol = symbol[:-3] + "USDT"
+        pair = (symbol or self.config.symbol).replace("-", "/")
+        if pair.endswith("USD"):
+            pair = pair[:-3] + "USDT"
         data = exchange.fetch_ohlcv(
-            symbol=symbol, timeframe=self.config.timeframe, limit=100
+            symbol=pair, timeframe=self.config.timeframe, limit=100
         )
         df = pd.DataFrame(
             data, columns=["timestamp", "open", "high", "low", "close", "volume"]
@@ -237,10 +241,10 @@ class TraderBot:
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         return df
 
-    def fetch_candles(self) -> pd.DataFrame:
+    def fetch_candles(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """Fetch recent OHLCV data from the configured exchange via CCXT."""
         try:
-            return self.fetch_candles_ccxt(self.config.exchange)
+            return self.fetch_candles_ccxt(self.config.exchange, symbol)
         except Exception as exc:
             logging.error("CCXT data fetch failed: %s", exc)
             return pd.DataFrame()
@@ -315,8 +319,16 @@ class TraderBot:
                     and self.account.current_drawdown(price) > self.config.max_drawdown_pct
                 ):
                     print("Max drawdown exceeded. Stopping bot.")
+                    pos = self.account.position
+                    exit_df = self.fetch_candles(pos["symbol"])
+                    if not exit_df.empty:
+                        exit_price = exit_df["close"].iloc[-1]
+                        exit_time = exit_df["timestamp"].iloc[-1]
+                    else:
+                        exit_price = price
+                        exit_time = timestamp
                     if not self.account.sell(
-                        price, self.account.position["amount"], timestamp, symbol
+                        exit_price, pos["amount"], exit_time, pos["symbol"]
                     ):
                         logging.warning(
                             "Position remains open after drawdown trigger.",
@@ -339,20 +351,25 @@ if __name__ == "__main__":
         if bot.account.position:
             logging.info("Attempting to close open position on exit.")
             try:
-                df = bot.fetch_candles()
+                pos_symbol = bot.account.position["symbol"]
+                original_symbol = bot.config.symbol
+                bot.config.symbol = pos_symbol
+                df = bot.fetch_candles(pos_symbol)
                 if not df.empty:
                     price = df["close"].iloc[-1]
                     timestamp = df["timestamp"].iloc[-1]
                     pos = bot.account.position
                     if not bot.account.sell(
-                        price, pos["amount"], timestamp, pos["symbol"]
+                        price, pos["amount"], timestamp, pos_symbol
                     ):
                         logging.warning(
-                            "Open position could not be closed on exit."
+                            "Open position could not be closed on exit.",
                         )
                 else:
                     logging.warning(
-                        "No market data to close position on exit; position remains open."
+                        "No market data to close position on exit; position remains open.",
                     )
             except Exception as exc:
                 logging.error("Exception during cleanup: %s", exc)
+            finally:
+                bot.config.symbol = original_symbol
