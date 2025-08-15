@@ -25,7 +25,7 @@ class Config:
     symbol: str = "BTC-USD"
     timeframe: str = "1m"
     exchange: str = "binanceus"
-    stake: float = 0.001  # trade size in asset units
+    stake_usd: float = 100.0  # trade size in USD
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
     stop_loss_pct: float = 0.02  # 2% stop loss
@@ -261,12 +261,13 @@ class TraderBot:
         self, side: str, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
+        amount = self.config.stake_usd / price
         if side == "buy":
             stop = price * (1 - self.config.stop_loss_pct)
             target = price * (1 + self.config.take_profit_pct)
             self.account.buy(
                 price,
-                self.config.stake,
+                amount,
                 timestamp,
                 symbol,
                 stop_loss=stop,
@@ -274,7 +275,7 @@ class TraderBot:
             )
         elif side == "sell":
             if self.account.position and self.account.position.get("symbol") == symbol:
-                self.account.sell(price, self.config.stake, timestamp, symbol)
+                self.account.sell(price, amount, timestamp, symbol)
 
     def run(self) -> None:
         """Run the trading loop."""
