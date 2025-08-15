@@ -84,13 +84,15 @@ class SymbolFetcher:
 class PaperAccount:
     """Simple paper trading ledger."""
 
-    def __init__(self, balance: float, max_exposure: float) -> None:
+    def __init__(self, balance: float, max_exposure: float, config: Config) -> None:
         self.initial_balance = balance
         self.balance = balance
         self.max_exposure = max_exposure
         self.position: Optional[Dict] = None
         self.log: List[Dict] = []
         self.peak_balance = balance
+        # retain reference to the configuration so we can log the active symbol
+        self.config = config
 
     def _log_to_file(self, entry: Dict) -> None:
         path = "trade_log.csv"
@@ -137,7 +139,7 @@ class PaperAccount:
         self.peak_balance = max(self.peak_balance, self.balance)
         entry = {
             "timestamp": timestamp.isoformat(),
-            "symbol": symbol,
+            "symbol": self.config.symbol,
             "side": "buy",
             "price": price,
             "amount": amount,
@@ -162,7 +164,7 @@ class PaperAccount:
         duration = timestamp - self.position["timestamp"]
         entry = {
             "timestamp": timestamp.isoformat(),
-            "symbol": symbol,
+            "symbol": self.config.symbol,
             "side": "sell",
             "price": price,
             "amount": amount,
@@ -196,7 +198,9 @@ class PaperAccount:
 class TraderBot:
     def __init__(self, config: Config):
         self.config = config
-        self.account = PaperAccount(config.starting_balance, config.max_exposure)
+        self.account = PaperAccount(
+            config.starting_balance, config.max_exposure, config
+        )
         self.symbol_fetcher = SymbolFetcher()
         self.symbol_fetcher.start()
 
