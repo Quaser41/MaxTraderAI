@@ -28,6 +28,8 @@ pip install -r requirements.txt
 
 Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
+The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` to require a minimum cumulative profit before continuing to trade a symbol. Symbols whose PnL over the configured window falls below the threshold are skipped.
+
 To control how often the strategy trades, adjust the `timeframe` along with the `ema_fast_span` and `ema_slow_span` settings in `Config`. Shorter timeframes like `"1m"` or `"5m"` provide more frequent price updates, while smaller EMA spans make crossovers more responsive. These tweaks are useful to trigger trades during brief test runs. For example:
 
 ```python
