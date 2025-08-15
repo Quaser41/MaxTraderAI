@@ -8,7 +8,7 @@ import pandas as pd
 # Add src directory to path for importing bot module
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
-from bot import Config, PaperAccount
+from bot import Config, PaperAccount, TraderBot, SymbolFetcher
 
 
 def test_trade_log_contains_symbol(tmp_path):
@@ -31,3 +31,30 @@ def test_trade_log_contains_symbol(tmp_path):
         os.chdir(old_cwd)
 
     assert rows and rows[0]["symbol"] == symbol
+
+
+def test_execute_trade_logs_amount(tmp_path, monkeypatch):
+    """Ensure TraderBot passes the calculated amount through to the CSV."""
+    stake_usd = 50.0
+    price = 10.0
+    expected_amount = stake_usd / price
+    symbol = "TEST-USD"
+
+    # prevent background thread/network activity
+    monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
+
+    config = Config(stake_usd=stake_usd, symbol=symbol)
+    bot = TraderBot(config)
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        timestamp = pd.Timestamp("2024-01-01")
+        bot.execute_trade("buy", price, timestamp, symbol)
+        with open("trade_log.csv", newline="") as f:
+            rows = list(csv.DictReader(f))
+    finally:
+        os.chdir(old_cwd)
+
+    assert rows, "No trades logged"
+    assert float(rows[-1]["amount"]) == expected_amount

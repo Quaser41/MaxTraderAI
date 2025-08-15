@@ -138,6 +138,13 @@ class PaperAccount:
         take_profit: Optional[float] = None,
     ) -> bool:
         cost = price * amount
+        logging.info(
+            "Computed buy amount %s for %s at price %.2f (cost %.2f)",
+            amount,
+            symbol,
+            price,
+            cost,
+        )
         if symbol in self.positions:
             print("Buy skipped: position already open for symbol")
             return False
@@ -311,13 +318,19 @@ class TraderBot:
         if side == "buy":
             if symbol not in self.account.positions:
                 amount = self.config.stake_usd / price
+                logging.info(
+                    "Calculated trade amount %s for stake %.2f at price %.2f",
+                    amount,
+                    self.config.stake_usd,
+                    price,
+                )
                 stop = price * (1 - self.config.stop_loss_pct)
                 target = price * (1 + self.config.take_profit_pct)
                 self.account.buy(
-                    price,
-                    amount,
-                    timestamp,
-                    symbol,
+                    price=price,
+                    amount=amount,
+                    timestamp=timestamp,
+                    symbol=symbol,
                     stop_loss=stop,
                     take_profit=target,
                 )
