@@ -182,8 +182,12 @@ class PaperAccount:
 
     def current_drawdown(self, current_price: Optional[float] = None) -> float:
         equity = self.balance
-        if self.position and current_price is not None:
+        if self.position:
             amount = self.position["amount"]
+            if current_price is None:
+                current_price = self.position.get("last_price", self.position["price"])
+            else:
+                self.position["last_price"] = current_price
             # treat open position value as unrealized PnL to reflect total equity
             unrealized_pnl = current_price * amount
             equity += unrealized_pnl
@@ -306,22 +310,17 @@ class TraderBot:
                 if signal:
                     self.execute_trade(signal, price, timestamp, symbol)
                 if (
-                    self.account.current_drawdown(price)
-                    > self.config.max_drawdown_pct
+                    self.account.position
+                    and self.account.position.get("symbol") == symbol
+                    and self.account.current_drawdown(price) > self.config.max_drawdown_pct
                 ):
                     print("Max drawdown exceeded. Stopping bot.")
-                    if (
-                        self.account.position
-                        and self.account.position.get("symbol") == symbol
+                    if not self.account.sell(
+                        price, self.account.position["amount"], timestamp, symbol
                     ):
-                        if not self.account.sell(
-                            price, self.account.position["amount"], timestamp, symbol
-                        ):
-                            logging.warning(
-                                "Position remains open after drawdown trigger."
-                            )
-                    else:
-                        logging.info("No open position to close on drawdown trigger.")
+                        logging.warning(
+                            "Position remains open after drawdown trigger.",
+                        )
                     return
                 time.sleep(1)
             time.sleep(60)
