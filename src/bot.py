@@ -151,7 +151,7 @@ class PaperAccount:
         self.peak_balance = max(self.peak_balance, self.balance)
         entry = {
             "timestamp": timestamp.isoformat(),
-            "symbol": self.config.symbol,
+            "symbol": symbol,
             "side": "buy",
             "price": price,
             "amount": amount,
@@ -160,7 +160,9 @@ class PaperAccount:
         }
         self.log.append(entry)
         self._log_to_file(entry)
-        print(f"BUY {amount} at {price:.2f} -- balance {self.balance:.2f}")
+        print(
+            f"BUY {symbol} {amount} at {price:.2f} -- balance {self.balance:.2f}"
+        )
         return True
 
     def sell(
@@ -178,7 +180,7 @@ class PaperAccount:
         duration = timestamp - pos["timestamp"]
         entry = {
             "timestamp": timestamp.isoformat(),
-            "symbol": self.config.symbol,
+            "symbol": symbol,
             "side": "sell",
             "price": price,
             "amount": amount,
@@ -188,7 +190,7 @@ class PaperAccount:
         self.log.append(entry)
         self._log_to_file(entry)
         print(
-            f"SELL {amount} at {price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
+            f"SELL {symbol} {amount} at {price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
         )
         del self.positions[symbol]
         self.print_performance()
