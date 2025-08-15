@@ -188,9 +188,9 @@ class PaperAccount:
                 current_price = self.position.get("last_price", self.position["price"])
             else:
                 self.position["last_price"] = current_price
-            # treat open position value as unrealized PnL to reflect total equity
-            unrealized_pnl = current_price * amount
-            equity += unrealized_pnl
+            # include open position's market value when computing total equity
+            position_value = current_price * amount
+            equity += position_value
         self.peak_balance = max(self.peak_balance, equity)
         return (self.peak_balance - equity) / self.peak_balance if self.peak_balance else 0.0
 
