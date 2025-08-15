@@ -33,6 +33,8 @@ class Config:
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
     ema_fast_span: int = 12  # fast EMA span for crossover
     ema_slow_span: int = 26  # slow EMA span for crossover
+    drawdown_cooldown: int = 300  # seconds to pause after max drawdown
+    stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
 
 
 
@@ -291,6 +293,7 @@ class TraderBot:
         """Run the trading loop."""
         while True:
             symbols = self.symbol_fetcher.symbols or [self.config.symbol]
+            paused = False
             for symbol in symbols:
                 self.config.symbol = symbol
                 df = self.fetch_candles()
@@ -320,7 +323,7 @@ class TraderBot:
                     and self.account.position.get("symbol") == symbol
                     and self.account.current_drawdown(price) > self.config.max_drawdown_pct
                 ):
-                    print("Max drawdown exceeded. Stopping bot.")
+                    print("Max drawdown exceeded.")
                     pos = self.account.position
                     exit_df = self.fetch_candles(pos["symbol"])
                     if not exit_df.empty:
@@ -335,9 +338,18 @@ class TraderBot:
                         logging.warning(
                             "Position remains open after drawdown trigger.",
                         )
-                    return
+                    if self.config.stop_on_drawdown:
+                        print("Stopping bot due to drawdown.")
+                        return
+                    self.account.peak_balance = self.account.balance
+                    cooldown = self.config.drawdown_cooldown
+                    print(f"Pausing for {cooldown} seconds after drawdown.")
+                    time.sleep(cooldown)
+                    paused = True
+                    break
                 time.sleep(1)
-            time.sleep(60)
+            if not paused:
+                time.sleep(60)
 
 
 if __name__ == "__main__":
