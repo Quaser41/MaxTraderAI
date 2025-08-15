@@ -51,10 +51,24 @@ class SymbolFetcher:
         self.refresh = refresh
         self.limit = limit
         self.symbols: List[str] = []
+        self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
         self._thread.start()
+
+    def wait_until_ready(self, timeout: Optional[float] = None) -> None:
+        """Block until at least one symbol has been fetched."""
+        if not self._thread.is_alive():
+            return
+        if not self.symbols:
+            logging.info("Waiting for initial symbol data...")
+        self._ready.wait(timeout=timeout)
+        if self.symbols:
+            logging.info(
+                "Symbol fetcher initialized with symbols: %s",
+                ", ".join(self.symbols),
+            )
 
     def _run(self) -> None:
         while True:
@@ -84,6 +98,8 @@ class SymbolFetcher:
                 self.symbols = validated
                 if self.symbols:
                     logging.info("Fetched symbols: %s", ", ".join(self.symbols))
+                    if not self._ready.is_set():
+                        self._ready.set()
             except Exception as exc:
                 logging.error("Symbol fetch failed: %s", exc)
             time.sleep(self.refresh)
@@ -301,6 +317,7 @@ class TraderBot:
         )
         self.symbol_fetcher = SymbolFetcher()
         self.symbol_fetcher.start()
+        self.symbol_fetcher.wait_until_ready()
         self.last_summary = time.time()
 
     def fetch_candles_ccxt(
