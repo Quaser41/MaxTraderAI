@@ -90,7 +90,7 @@ class PaperAccount:
         self.initial_balance = balance
         self.balance = balance
         self.max_exposure = max_exposure
-        self.position: Optional[Dict] = None
+        self.positions: Dict[str, Dict] = {}
         self.log: List[Dict] = []
         self.peak_balance = balance
         # retain reference to the configuration so we can log the active symbol
@@ -126,11 +126,14 @@ class PaperAccount:
         take_profit: Optional[float] = None,
     ) -> bool:
         cost = price * amount
+        if symbol in self.positions:
+            print("Buy skipped: position already open for symbol")
+            return False
         if cost > self.initial_balance * self.max_exposure or cost > self.balance:
             print("Buy skipped: exposure limit or insufficient balance")
             return False
         self.balance -= cost
-        self.position = {
+        self.positions[symbol] = {
             "price": price,
             "amount": amount,
             "timestamp": timestamp,
@@ -156,15 +159,16 @@ class PaperAccount:
     def sell(
         self, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> bool:
-        if not self.position or self.position.get("symbol") != symbol:
+        pos = self.positions.get(symbol)
+        if not pos:
             print("Sell skipped: no matching open position")
             return False
-        amount = self.position["amount"]
-        entry_price = self.position["price"]
+        amount = pos["amount"]
+        entry_price = pos["price"]
         profit = (price - entry_price) * amount
         self.balance += price * amount
         self.peak_balance = max(self.peak_balance, self.balance)
-        duration = timestamp - self.position["timestamp"]
+        duration = timestamp - pos["timestamp"]
         entry = {
             "timestamp": timestamp.isoformat(),
             "symbol": self.config.symbol,
@@ -179,23 +183,27 @@ class PaperAccount:
         print(
             f"SELL {amount} at {price:.2f} -- PnL {profit:.2f} -- balance {self.balance:.2f}"
         )
-        self.position = None
+        del self.positions[symbol]
         self.print_performance()
         return True
 
-    def current_drawdown(self, current_price: Optional[float] = None) -> float:
+    def current_drawdown(
+        self, current_prices: Optional[Dict[str, float]] = None
+    ) -> float:
         equity = self.balance
-        if self.position:
-            amount = self.position["amount"]
-            if current_price is None:
-                current_price = self.position.get("last_price", self.position["price"])
+        for sym, pos in self.positions.items():
+            if current_prices and sym in current_prices:
+                price = current_prices[sym]
+                pos["last_price"] = price
             else:
-                self.position["last_price"] = current_price
-            # include open position's market value when computing total equity
-            position_value = current_price * amount
-            equity += position_value
+                price = pos.get("last_price", pos["price"])
+            equity += price * pos["amount"]
         self.peak_balance = max(self.peak_balance, equity)
-        return (self.peak_balance - equity) / self.peak_balance if self.peak_balance else 0.0
+        return (
+            (self.peak_balance - equity) / self.peak_balance
+            if self.peak_balance
+            else 0.0
+        )
 
     def print_performance(self) -> None:
         sells = [t for t in self.log if t["side"] == "sell"]
@@ -285,8 +293,7 @@ class TraderBot:
                 take_profit=target,
             )
         elif side == "sell":
-            if self.account.position and self.account.position.get("symbol") == symbol:
-                amount = self.account.position["amount"]
+            if symbol in self.account.positions:
                 self.account.sell(price, timestamp, symbol)
 
     def run(self) -> None:
@@ -302,11 +309,8 @@ class TraderBot:
                     continue
                 price = df["close"].iloc[-1]
                 timestamp = df["timestamp"].iloc[-1]
-                if (
-                    self.account.position
-                    and self.account.position.get("symbol") == symbol
-                ):
-                    pos = self.account.position
+                pos = self.account.positions.get(symbol)
+                if pos:
                     if (
                         pos.get("stop_loss") is not None and price <= pos["stop_loss"]
                     ) or (
@@ -318,23 +322,21 @@ class TraderBot:
                 signal = self.generate_signal(df)
                 if signal:
                     self.execute_trade(signal, price, timestamp, symbol)
+                pos = self.account.positions.get(symbol)
                 if (
-                    self.account.position
-                    and self.account.position.get("symbol") == symbol
-                    and self.account.current_drawdown(price) > self.config.max_drawdown_pct
+                    pos
+                    and self.account.current_drawdown({symbol: price})
+                    > self.config.max_drawdown_pct
                 ):
                     print("Max drawdown exceeded.")
-                    pos = self.account.position
-                    exit_df = self.fetch_candles(pos["symbol"])
+                    exit_df = self.fetch_candles(symbol)
                     if not exit_df.empty:
                         exit_price = exit_df["close"].iloc[-1]
                         exit_time = exit_df["timestamp"].iloc[-1]
                     else:
                         exit_price = price
                         exit_time = timestamp
-                    if not self.account.sell(
-                        exit_price, exit_time, pos["symbol"]
-                    ):
+                    if not self.account.sell(exit_price, exit_time, symbol):
                         logging.warning(
                             "Position remains open after drawdown trigger.",
                         )
@@ -362,27 +364,24 @@ if __name__ == "__main__":
     except Exception as exc:
         logging.exception("Unhandled exception in TraderBot.run: %s", exc)
     finally:
-        if bot.account.position:
-            logging.info("Attempting to close open position on exit.")
+        if bot.account.positions:
+            logging.info("Attempting to close open positions on exit.")
             try:
-                pos_symbol = bot.account.position["symbol"]
                 original_symbol = bot.config.symbol
-                bot.config.symbol = pos_symbol
-                df = bot.fetch_candles(pos_symbol)
-                if not df.empty:
-                    price = df["close"].iloc[-1]
-                    timestamp = df["timestamp"].iloc[-1]
-                    pos = bot.account.position
-                    if not bot.account.sell(
-                        price, timestamp, pos_symbol
-                    ):
+                for pos_symbol in list(bot.account.positions.keys()):
+                    bot.config.symbol = pos_symbol
+                    df = bot.fetch_candles(pos_symbol)
+                    if not df.empty:
+                        price = df["close"].iloc[-1]
+                        timestamp = df["timestamp"].iloc[-1]
+                        if not bot.account.sell(price, timestamp, pos_symbol):
+                            logging.warning(
+                                "Open position could not be closed on exit.",
+                            )
+                    else:
                         logging.warning(
-                            "Open position could not be closed on exit.",
+                            "No market data to close position on exit; position remains open.",
                         )
-                else:
-                    logging.warning(
-                        "No market data to close position on exit; position remains open.",
-                    )
             except Exception as exc:
                 logging.error("Exception during cleanup: %s", exc)
             finally:
