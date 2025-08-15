@@ -180,8 +180,15 @@ class PaperAccount:
         self.print_performance()
         return True
 
-    def current_drawdown(self) -> float:
-        return (self.peak_balance - self.balance) / self.peak_balance
+    def current_drawdown(self, current_price: Optional[float] = None) -> float:
+        equity = self.balance
+        if self.position and current_price is not None:
+            amount = self.position["amount"]
+            # treat open position value as unrealized PnL to reflect total equity
+            unrealized_pnl = current_price * amount
+            equity += unrealized_pnl
+        self.peak_balance = max(self.peak_balance, equity)
+        return (self.peak_balance - equity) / self.peak_balance if self.peak_balance else 0.0
 
     def print_performance(self) -> None:
         sells = [t for t in self.log if t["side"] == "sell"]
@@ -297,8 +304,23 @@ class TraderBot:
                 signal = self.generate_signal(df)
                 if signal:
                     self.execute_trade(signal, price, timestamp, symbol)
-                if self.account.current_drawdown() > self.config.max_drawdown_pct:
+                if (
+                    self.account.current_drawdown(price)
+                    > self.config.max_drawdown_pct
+                ):
                     print("Max drawdown exceeded. Stopping bot.")
+                    if (
+                        self.account.position
+                        and self.account.position.get("symbol") == symbol
+                    ):
+                        if not self.account.sell(
+                            price, self.account.position["amount"], timestamp, symbol
+                        ):
+                            logging.warning(
+                                "Position remains open after drawdown trigger."
+                            )
+                    else:
+                        logging.info("No open position to close on drawdown trigger.")
                     return
                 time.sleep(1)
             time.sleep(60)
@@ -309,4 +331,28 @@ if __name__ == "__main__":
     config = Config()
 
     bot = TraderBot(config)
-    bot.run()
+    try:
+        bot.run()
+    except Exception as exc:
+        logging.exception("Unhandled exception in TraderBot.run: %s", exc)
+    finally:
+        if bot.account.position:
+            logging.info("Attempting to close open position on exit.")
+            try:
+                df = bot.fetch_candles()
+                if not df.empty:
+                    price = df["close"].iloc[-1]
+                    timestamp = df["timestamp"].iloc[-1]
+                    pos = bot.account.position
+                    if not bot.account.sell(
+                        price, pos["amount"], timestamp, pos["symbol"]
+                    ):
+                        logging.warning(
+                            "Open position could not be closed on exit."
+                        )
+                else:
+                    logging.warning(
+                        "No market data to close position on exit; position remains open."
+                    )
+            except Exception as exc:
+                logging.error("Exception during cleanup: %s", exc)
