@@ -316,6 +316,7 @@ class TraderBot:
 
     def run(self) -> None:
         """Run the trading loop."""
+        self.account.print_summary()
         while True:
             symbols = self.symbol_fetcher.symbols or [self.config.symbol]
             paused = False
@@ -370,11 +371,11 @@ class TraderBot:
                     paused = True
                     break
                 time.sleep(1)
-        if time.time() - self.last_summary >= self.config.summary_interval:
-            self.account.print_summary()
-            self.last_summary = time.time()
-        if not paused:
-            time.sleep(60)
+            if time.time() - self.last_summary >= self.config.summary_interval:
+                self.account.print_summary()
+                self.last_summary = time.time()
+            if not paused:
+                time.sleep(60)
 
 
 if __name__ == "__main__":
