@@ -104,6 +104,11 @@ class PaperAccount:
         )
 
     def _log_to_file(self, entry: Dict) -> None:
+        symbol = entry.get("symbol")
+        if not symbol:
+            logging.warning("Skipping log entry without symbol: %s", entry)
+            return
+
         path = "trade_log.csv"
         file_exists = os.path.isfile(path)
         with open(path, "a", newline="") as f:
@@ -330,6 +335,9 @@ class TraderBot:
             symbols = self.symbol_fetcher.symbols or [self.config.symbol]
             paused = False
             for symbol in symbols:
+                if not symbol:
+                    logging.warning("Encountered empty symbol; skipping trade execution")
+                    continue
                 self.config.symbol = symbol
                 df = self.fetch_candles()
                 if df.empty:
