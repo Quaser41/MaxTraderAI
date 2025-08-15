@@ -97,6 +97,12 @@ class PaperAccount:
         # retain reference to the configuration so we can log the active symbol
         self.config = config
 
+    def get_equity(self) -> float:
+        """Return current account equity at entry prices."""
+        return self.balance + sum(
+            pos["price"] * pos["amount"] for pos in self.positions.values()
+        )
+
     def _log_to_file(self, entry: Dict) -> None:
         path = "trade_log.csv"
         file_exists = os.path.isfile(path)
@@ -210,7 +216,8 @@ class PaperAccount:
         sells = [t for t in self.log if t["side"] == "sell"]
         if not sells:
             return
-        net_profit = self.balance - self.initial_balance
+        equity = self.get_equity()
+        net_profit = equity - self.initial_balance
         wins = [t for t in sells if t["profit"] > 0]
         win_rate = len(wins) / len(sells) * 100
         print(
@@ -221,7 +228,7 @@ class PaperAccount:
         """Print a brief account summary."""
         open_trades = len(self.positions)
         closed_trades = len([t for t in self.log if t["side"] == "sell"])
-        profit_loss = self.balance - self.initial_balance
+        profit_loss = self.get_equity() - self.initial_balance
         print(
             f"Balance: {self.balance:.2f} | "
             f"Open trades: {open_trades} | "
