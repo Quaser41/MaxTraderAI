@@ -30,6 +30,8 @@ Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/
 
 The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` to require a minimum cumulative profit before continuing to trade a symbol. Symbols whose PnL over the configured window falls below the threshold are skipped.
 
+The strategy also calculates a 14-period Relative Strength Index (RSI) and only allows a trade when this value is above `rsi_buy_threshold` (default 55) for buys or below `rsi_sell_threshold` (default 45) for sells. The RSI period and thresholds are configurable via `rsi_period`, `rsi_buy_threshold`, and `rsi_sell_threshold` in `Config`.
+
 To control how often the strategy trades, adjust the `timeframe` along with the `ema_fast_span` and `ema_slow_span` settings in `Config`. Shorter timeframes like `"1m"` or `"5m"` provide more frequent price updates, while smaller EMA spans make crossovers more responsive. These tweaks are useful to trigger trades during brief test runs. For example:
 
 ```python

@@ -41,6 +41,9 @@ class Config:
     fee_pct: float = 0.0  # exchange fee percentage applied on sells
     trailing_stop_pct: float = 0.0  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
+    rsi_period: int = 14  # period for RSI calculation
+    rsi_buy_threshold: float = 55.0  # minimum RSI for buy signals
+    rsi_sell_threshold: float = 45.0  # maximum RSI for sell signals
 
 
 
@@ -355,17 +358,28 @@ class TraderBot:
             return pd.DataFrame()
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
-        """Generate a simple moving average crossover signal."""
+        """Generate a moving average crossover signal filtered by RSI."""
         df["ema_fast"] = df["close"].ewm(span=self.config.ema_fast_span).mean()
         df["ema_slow"] = df["close"].ewm(span=self.config.ema_slow_span).mean()
+
+        delta = df["close"].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.rolling(window=self.config.rsi_period).mean()
+        avg_loss = loss.rolling(window=self.config.rsi_period).mean()
+        rs = avg_gain / avg_loss
+        df["rsi"] = 100 - (100 / (1 + rs))
+
         if (
             df["ema_fast"].iloc[-1] > df["ema_slow"].iloc[-1]
             and df["ema_fast"].iloc[-2] <= df["ema_slow"].iloc[-2]
+            and df["rsi"].iloc[-1] > self.config.rsi_buy_threshold
         ):
             return "buy"
         if (
             df["ema_fast"].iloc[-1] < df["ema_slow"].iloc[-1]
             and df["ema_fast"].iloc[-2] >= df["ema_slow"].iloc[-2]
+            and df["rsi"].iloc[-1] < self.config.rsi_sell_threshold
         ):
             return "sell"
         return None
