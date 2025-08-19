@@ -211,7 +211,7 @@ class PaperAccount:
     ) -> bool:
         pos = self.positions.get(symbol)
         if not pos:
-            print("Sell skipped: no matching open position")
+            logging.warning("Sell attempted for %s without an open position", symbol)
             return False
         amount = pos["amount"]
         entry_price = pos["price"]
@@ -397,9 +397,12 @@ class TraderBot:
             else:
                 logging.info("Buy skipped: position already open for %s", symbol)
         elif side == "sell":
-            pos = self.account.positions.get(symbol)
-            if pos:
+            if symbol in self.account.positions:
                 self.account.sell(price, timestamp, symbol, self.config.fee_pct)
+            else:
+                logging.warning(
+                    "Sell skipped: no open position for %s", symbol
+                )
 
     def run(self) -> None:
         """Run the trading loop."""
