@@ -26,6 +26,7 @@ class Config:
     timeframe: str = "1m"
     exchange: str = "binanceus"
     stake_usd: float = 100.0  # trade size in USD
+    max_tokens: float = float("inf")  # maximum token quantity per trade
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
     stop_loss_pct: float = 0.02  # 2% stop loss
@@ -397,6 +398,16 @@ class TraderBot:
                     self.config.stake_usd,
                     price,
                 )
+                if amount > self.config.max_tokens:
+                    logging.warning(
+                        "Amount %s exceeds max_tokens %s; capping",
+                        amount,
+                        self.config.max_tokens,
+                    )
+                    amount = self.config.max_tokens
+                if amount <= 0:
+                    logging.warning("Buy skipped: non-positive amount %s", amount)
+                    return
                 stop = price * (1 - self.config.stop_loss_pct)
                 target = price * (1 + self.config.take_profit_pct)
                 self.account.buy(
