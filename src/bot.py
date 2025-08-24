@@ -31,6 +31,7 @@ class Config:
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
     stop_loss_pct: float = 0.02  # 2% stop loss
     take_profit_pct: float = 0.04  # 4% take profit target
+    atr_multiplier: float = 1.0  # ATR multiple for stop-loss and take-profit
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
     ema_fast_span: int = 12  # fast EMA span for crossover
     ema_slow_span: int = 26  # slow EMA span for crossover
@@ -447,8 +448,29 @@ class TraderBot:
         """Execute a paper trade through the PaperAccount."""
         costs = self.config.fee_pct * 2 + self.config.spread_pct
         if side == "buy":
+            atr = None
+            if self.config.atr_multiplier > 0:
+                df = self.fetch_candles(symbol)
+                if not df.empty:
+                    high_low = df["high"] - df["low"]
+                    high_close = (df["high"] - df["close"].shift()).abs()
+                    low_close = (df["low"] - df["close"].shift()).abs()
+                    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+                    atr = (
+                        tr.rolling(window=self.config.rsi_period, min_periods=1)
+                        .mean()
+                        .iloc[-1]
+                    )
             if symbol not in self.account.positions:
-                edge = self.config.take_profit_pct - costs
+                if atr is not None and atr > 0:
+                    target_pct = (atr * self.config.atr_multiplier) / price
+                    edge = target_pct - costs
+                    stop = price - atr * self.config.atr_multiplier
+                    target = price + atr * self.config.atr_multiplier
+                else:
+                    edge = self.config.take_profit_pct - costs
+                    stop = price * (1 - self.config.stop_loss_pct)
+                    target = price * (1 + self.config.take_profit_pct)
                 if edge < self.config.min_edge_pct:
                     logging.info(
                         "Buy skipped: edge %.4f below minimum %.4f",
@@ -473,8 +495,6 @@ class TraderBot:
                 if amount <= 0:
                     logging.warning("Buy skipped: non-positive amount %s", amount)
                     return
-                stop = price * (1 - self.config.stop_loss_pct)
-                target = price * (1 + self.config.take_profit_pct)
                 self.account.buy(
                     price=price,
                     amount=amount,

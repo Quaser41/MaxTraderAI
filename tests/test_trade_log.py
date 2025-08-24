@@ -47,6 +47,17 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
 
     config = Config(stake_usd=stake_usd, symbol=symbol)
     bot = TraderBot(config)
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-01", periods=2, freq="min"),
+            "open": [price, price],
+            "high": [price + 1, price + 2],
+            "low": [price - 1, price - 2],
+            "close": [price, price],
+            "volume": [0, 0],
+        }
+    )
+    monkeypatch.setattr(bot, "fetch_candles", lambda symbol=None: df)
 
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
