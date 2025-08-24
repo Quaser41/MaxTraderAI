@@ -135,9 +135,10 @@ class PaperAccount:
         self.config = config
 
     def get_equity(self) -> float:
-        """Return current account equity at entry prices."""
+        """Return current account equity using the most recent prices."""
         return self.balance + sum(
-            pos["price"] * pos["amount"] for pos in self.positions.values()
+            pos.get("last_price", pos["price"]) * pos["amount"]
+            for pos in self.positions.values()
         )
 
     def _log_to_file(self, entry: Dict) -> None:
@@ -530,6 +531,7 @@ class TraderBot:
                 timestamp = df["timestamp"].iloc[-1]
                 pos = self.account.positions.get(symbol)
                 if pos:
+                    pos["last_price"] = price
                     pos["highest_price"] = max(
                         pos.get("highest_price", pos["price"]), price
                     )
@@ -568,6 +570,8 @@ class TraderBot:
                 elif signal == "sell" and pos:
                     self.execute_trade("sell", price, timestamp, symbol)
                 pos = self.account.positions.get(symbol)
+                if pos:
+                    pos["last_price"] = price
                 if (
                     pos
                     and self.account.current_drawdown({symbol: price})
