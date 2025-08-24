@@ -65,6 +65,7 @@ class SymbolFetcher:
         self.min_price = min_price
         self.symbols: List[str] = []
         self._ready = threading.Event()
+        self.exchange = ccxt.binanceus()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
@@ -94,8 +95,7 @@ class SymbolFetcher:
                 usdt_pairs.sort(
                     key=lambda d: float(d.get("quoteVolume", 0)), reverse=True
                 )
-                exchange = ccxt.binanceus()
-                exchange.load_markets()
+                self.exchange.load_markets()
                 validated: List[str] = []
                 for d in usdt_pairs:
                     base = d["symbol"][:-4]
@@ -104,7 +104,7 @@ class SymbolFetcher:
                     if price < self.min_price:
                         continue
                     try:
-                        exchange.fetch_ticker(base + "/USDT")
+                        self.exchange.fetch_ticker(base + "/USDT")
                     except Exception as exc:
                         logging.info("Skipping symbol %s: %s", symbol, exc)
                         continue
