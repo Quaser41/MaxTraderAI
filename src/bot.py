@@ -214,8 +214,10 @@ class PaperAccount:
         trailing_stop: Optional[float] = None,
     ) -> bool:
         pos = self.positions.get(symbol)
-        if not pos:
-            logging.warning("Sell attempted for %s without an open position", symbol)
+        if not pos or pos.get("symbol") != symbol:
+            logging.warning(
+                "Sell attempted for %s without a matching open position", symbol
+            )
             return False
         amount = pos["amount"]
         entry_price = pos["price"]
