@@ -45,6 +45,10 @@ class Config:
     rsi_period: int = 14  # period for RSI calculation
     rsi_buy_threshold: float = 55.0  # minimum RSI for buy signals
     rsi_sell_threshold: float = 45.0  # maximum RSI for sell signals
+    rsi_std_multiplier: float = 1.0  # std-dev multiplier for adaptive RSI
+    ema_threshold_mult: float = 0.0  # volatility factor for EMA crossover
+    spread_pct: float = 0.0  # estimated bid/ask spread percentage
+    min_edge_pct: float = 0.0  # minimum edge required after costs
 
 
 
@@ -300,16 +304,30 @@ class PaperAccount:
         if pnl_str:
             print(f"PnL by symbol: {pnl_str}")
 
+    def pnl_excluding_outliers(self) -> float:
+        """Return PnL with outlier trades removed using the IQR method."""
+        sells = [float(t["profit"]) for t in self.log if t["side"] == "sell"]
+        if not sells:
+            return 0.0
+        series = pd.Series(sells)
+        q1, q3 = series.quantile([0.25, 0.75])
+        iqr = q3 - q1
+        lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        filtered = series[(series >= lower) & (series <= upper)]
+        return float(filtered.sum())
+
     def print_summary(self) -> None:
         """Print a brief account summary."""
         open_trades = len(self.positions)
         closed_trades = len([t for t in self.log if t["side"] == "sell"])
         profit_loss = self.get_equity() - self.initial_balance
+        filtered_pnl = self.pnl_excluding_outliers()
         print(
             f"Balance: {self.balance:.2f} | "
             f"Open trades: {open_trades} | "
             f"Closed trades: {closed_trades} | "
-            f"PnL: {profit_loss:.2f}"
+            f"PnL: {profit_loss:.2f} | "
+            f"PnL (filtered): {filtered_pnl:.2f}"
         )
 
 
@@ -371,16 +389,37 @@ class TraderBot:
         rs = avg_gain / avg_loss
         df["rsi"] = 100 - (100 / (1 + rs))
 
+        rsi_series = df["rsi"]
+        rsi_mean = rsi_series.rolling(self.config.rsi_period).mean().iloc[-1]
+        rsi_std = rsi_series.rolling(self.config.rsi_period).std().iloc[-1]
+        if pd.isna(rsi_mean) or pd.isna(rsi_std):
+            buy_thresh = self.config.rsi_buy_threshold
+            sell_thresh = self.config.rsi_sell_threshold
+        else:
+            buy_thresh = max(
+                self.config.rsi_buy_threshold,
+                rsi_mean + self.config.rsi_std_multiplier * rsi_std,
+            )
+            sell_thresh = min(
+                self.config.rsi_sell_threshold,
+                rsi_mean - self.config.rsi_std_multiplier * rsi_std,
+            )
+
+        ema_diff = df["ema_fast"] - df["ema_slow"]
+        vol = df["close"].pct_change().rolling(self.config.ema_slow_span).std().iloc[-1]
+        ema_threshold = (
+            vol * self.config.ema_threshold_mult if pd.notna(vol) else 0.0
+        )
         if (
-            df["ema_fast"].iloc[-1] > df["ema_slow"].iloc[-1]
-            and df["ema_fast"].iloc[-2] <= df["ema_slow"].iloc[-2]
-            and df["rsi"].iloc[-1] > self.config.rsi_buy_threshold
+            ema_diff.iloc[-1] > ema_threshold
+            and ema_diff.iloc[-2] <= ema_threshold
+            and df["rsi"].iloc[-1] > buy_thresh
         ):
             return "buy"
         if (
-            df["ema_fast"].iloc[-1] < df["ema_slow"].iloc[-1]
-            and df["ema_fast"].iloc[-2] >= df["ema_slow"].iloc[-2]
-            and df["rsi"].iloc[-1] < self.config.rsi_sell_threshold
+            ema_diff.iloc[-1] < -ema_threshold
+            and ema_diff.iloc[-2] >= -ema_threshold
+            and df["rsi"].iloc[-1] < sell_thresh
         ):
             return "sell"
         return None
@@ -389,8 +428,17 @@ class TraderBot:
         self, side: str, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
+        costs = self.config.fee_pct * 2 + self.config.spread_pct
         if side == "buy":
             if symbol not in self.account.positions:
+                edge = self.config.take_profit_pct - costs
+                if edge < self.config.min_edge_pct:
+                    logging.info(
+                        "Buy skipped: edge %.4f below minimum %.4f",
+                        edge,
+                        self.config.min_edge_pct,
+                    )
+                    return
                 amount = self.config.stake_usd / price
                 logging.info(
                     "Calculated trade amount %s for stake %.2f at price %.2f",
@@ -422,7 +470,16 @@ class TraderBot:
             else:
                 logging.info("Buy skipped: position already open for %s", symbol)
         elif side == "sell":
-            if symbol in self.account.positions:
+            pos = self.account.positions.get(symbol)
+            if pos:
+                gain_pct = (price - pos["price"]) / pos["price"] - costs
+                if gain_pct < self.config.min_edge_pct:
+                    logging.info(
+                        "Sell skipped: edge %.4f below minimum %.4f",
+                        gain_pct,
+                        self.config.min_edge_pct,
+                    )
+                    return
                 self.account.sell(price, timestamp, symbol, self.config.fee_pct)
             else:
                 logging.warning(
