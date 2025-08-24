@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 import time
 import requests
-import ccxt
 import pytest
 
 # Add src directory to path
@@ -29,11 +28,11 @@ def test_symbol_fetcher_filters_low_price(monkeypatch):
             return {"symbol": pair}
 
     monkeypatch.setattr(requests, "get", lambda *args, **kwargs: DummyResponse())
-    monkeypatch.setattr(ccxt, "binanceus", lambda: DummyExchange())
     monkeypatch.setattr(time, "sleep", lambda _: (_ for _ in ()).throw(SystemExit))
 
     config = Config(min_price=1.0)
     fetcher = SymbolFetcher(min_price=config.min_price)
+    fetcher.exchange = DummyExchange()
     with pytest.raises(SystemExit):
         fetcher._run()
 
