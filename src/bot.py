@@ -143,8 +143,7 @@ class PaperAccount:
     def _log_to_file(self, entry: Dict) -> None:
         symbol = entry.get("symbol")
         if not symbol:
-            logging.warning("Skipping log entry without symbol: %s", entry)
-            return
+            raise ValueError(f"Cannot log trade without symbol: {entry}")
 
         path = "trade_log.csv"
         file_exists = os.path.isfile(path)
@@ -175,6 +174,8 @@ class PaperAccount:
         take_profit: Optional[float] = None,
         trailing_stop_pct: Optional[float] = None,
     ) -> bool:
+        if not symbol:
+            raise ValueError("Symbol must be provided for buy")
         cost = price * amount
         logging.info(
             "Computed buy amount %s for %s at price %.2f (cost %.2f)",
@@ -225,6 +226,8 @@ class PaperAccount:
         fee_pct: float = 0.0,
         trailing_stop: Optional[float] = None,
     ) -> bool:
+        if not symbol:
+            raise ValueError("Symbol must be provided for sell")
         pos = self.positions.get(symbol)
         if not pos or pos.get("symbol") != symbol:
             logging.warning(
