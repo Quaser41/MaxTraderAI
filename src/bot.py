@@ -49,15 +49,20 @@ class Config:
     ema_threshold_mult: float = 0.0  # volatility factor for EMA crossover
     spread_pct: float = 0.0  # estimated bid/ask spread percentage
     min_edge_pct: float = 0.0  # minimum edge required after costs
+    min_price: float = 0.0  # minimum token price to include
+
 
 
 
 class SymbolFetcher:
     """Background thread that refreshes top-volume symbols from BinanceUS."""
 
-    def __init__(self, refresh: int = 3600, limit: int = 10) -> None:
+    def __init__(
+        self, refresh: int = 3600, limit: int = 10, min_price: float = 0.0
+    ) -> None:
         self.refresh = refresh
         self.limit = limit
+        self.min_price = min_price
         self.symbols: List[str] = []
         self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -95,6 +100,9 @@ class SymbolFetcher:
                 for d in usdt_pairs:
                     base = d["symbol"][:-4]
                     symbol = base + "-USD"
+                    price = float(d.get("lastPrice", 0) or 0)
+                    if price < self.min_price:
+                        continue
                     try:
                         exchange.fetch_ticker(base + "/USDT")
                     except Exception as exc:
@@ -218,8 +226,10 @@ class PaperAccount:
         trailing_stop: Optional[float] = None,
     ) -> bool:
         pos = self.positions.get(symbol)
-        if not pos:
-            logging.warning("Sell attempted for %s without an open position", symbol)
+        if not pos or pos.get("symbol") != symbol:
+            logging.warning(
+                "Sell attempted for %s without a matching open position", symbol
+            )
             return False
         amount = pos["amount"]
         entry_price = pos["price"]
@@ -337,7 +347,7 @@ class TraderBot:
         self.account = PaperAccount(
             config.starting_balance, config.max_exposure, config
         )
-        self.symbol_fetcher = SymbolFetcher()
+        self.symbol_fetcher = SymbolFetcher(min_price=config.min_price)
         self.symbol_fetcher.start()
         self.symbol_fetcher.wait_until_ready()
         self.last_summary = time.time()
