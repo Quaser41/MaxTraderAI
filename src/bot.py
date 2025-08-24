@@ -157,6 +157,7 @@ class PaperAccount:
                     "price",
                     "amount",
                     "profit",
+                    "fee",
                     "duration",
                 ],
             )
@@ -209,6 +210,7 @@ class PaperAccount:
             "price": price,
             "amount": amount,
             "profit": "",
+            "fee": "",
             "duration": "",
         }
         self.log.append(entry)
@@ -251,6 +253,7 @@ class PaperAccount:
             "price": exit_price,
             "amount": amount,
             "profit": profit,
+            "fee": fee,
             "duration": duration.total_seconds(),
         }
         self.log.append(entry)
