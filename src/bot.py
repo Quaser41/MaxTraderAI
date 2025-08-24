@@ -45,15 +45,19 @@ class Config:
     rsi_period: int = 14  # period for RSI calculation
     rsi_buy_threshold: float = 55.0  # minimum RSI for buy signals
     rsi_sell_threshold: float = 45.0  # maximum RSI for sell signals
+    min_price: float = 0.0  # minimum token price to include
 
 
 
 class SymbolFetcher:
     """Background thread that refreshes top-volume symbols from BinanceUS."""
 
-    def __init__(self, refresh: int = 3600, limit: int = 10) -> None:
+    def __init__(
+        self, refresh: int = 3600, limit: int = 10, min_price: float = 0.0
+    ) -> None:
         self.refresh = refresh
         self.limit = limit
+        self.min_price = min_price
         self.symbols: List[str] = []
         self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -91,6 +95,9 @@ class SymbolFetcher:
                 for d in usdt_pairs:
                     base = d["symbol"][:-4]
                     symbol = base + "-USD"
+                    price = float(d.get("lastPrice", 0) or 0)
+                    if price < self.min_price:
+                        continue
                     try:
                         exchange.fetch_ticker(base + "/USDT")
                     except Exception as exc:
@@ -319,7 +326,7 @@ class TraderBot:
         self.account = PaperAccount(
             config.starting_balance, config.max_exposure, config
         )
-        self.symbol_fetcher = SymbolFetcher()
+        self.symbol_fetcher = SymbolFetcher(min_price=config.min_price)
         self.symbol_fetcher.start()
         self.symbol_fetcher.wait_until_ready()
         self.last_summary = time.time()
