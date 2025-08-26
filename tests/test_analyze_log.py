@@ -24,8 +24,8 @@ def test_analyze_basic(tmp_path, capsys):
             "side": "sell",
             "price": 110.0,
             "amount": 1.0,
-            "profit": 10.0,
-            "fee": 0.0,
+            "profit": 8.5,
+            "fee": 1.5,
             "duration": 60.0,
         },
         {
@@ -44,8 +44,8 @@ def test_analyze_basic(tmp_path, capsys):
             "side": "sell",
             "price": 90.0,
             "amount": 1.0,
-            "profit": -10.0,
-            "fee": 0.0,
+            "profit": -11.5,
+            "fee": 1.5,
             "duration": 60.0,
         },
     ]
@@ -54,6 +54,6 @@ def test_analyze_basic(tmp_path, capsys):
     df.to_csv(path, index=False)
     analyze(str(path))
     captured = capsys.readouterr().out
-    assert "Net profit: -2.00" in captured
+    assert "Net profit: -3.00" in captured
     assert "Win rate: 50.0% (1/2)" in captured
-    assert "AAA-USD: -2.00" in captured
+    assert "AAA-USD: -3.00" in captured

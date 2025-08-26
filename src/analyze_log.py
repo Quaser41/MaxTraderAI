@@ -1,6 +1,5 @@
 import argparse
-from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -30,27 +29,18 @@ def analyze(log_path: str = "trade_log.csv", symbol: Optional[str] = None) -> No
     else:
         df["profit"] = df["profit"].fillna(0.0)
 
-    buy_fees: Dict[str, List[float]] = defaultdict(list)
-    per_symbol: Dict[str, float] = defaultdict(float)
-    wins = 0
-    trades = 0
-    total_profit = 0.0
-
-    for _, row in df.iterrows():
-        side = row["side"]
-        sym = row["symbol"]
-        if side == "buy":
-            buy_fees[sym].append(float(row["fee"]))
-        elif side == "sell":
-            fee = buy_fees[sym].pop(0) if buy_fees[sym] else 0.0
-            net = float(row["profit"]) - fee
-            total_profit += net
-            per_symbol[sym] += net
-            trades += 1
-            if net > 0:
-                wins += 1
-
+    sells = df[df["side"] == "sell"]
+    profits = sells["profit"].astype(float)
+    total_profit = float(profits.sum())
+    trades = len(profits)
+    wins = int((profits > 0).sum())
     win_rate = 100 * wins / trades if trades else 0.0
+    per_symbol = (
+        sells.groupby("symbol")["profit"].sum().astype(float).to_dict()
+        if not sells.empty
+        else {}
+    )
+
     print(f"Net profit: {total_profit:.2f}")
     print(f"Win rate: {win_rate:.1f}% ({wins}/{trades})")
     if per_symbol:
