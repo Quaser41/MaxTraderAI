@@ -42,3 +42,30 @@ def test_risk_pct_affects_trade_size(monkeypatch):
 
     assert amount_high == pytest.approx(amount_low * 2)
 
+
+def test_risk_pct_with_spread(monkeypatch):
+    symbol = "TEST-USD"
+    price = 10.0
+    timestamp = pd.Timestamp("2024-01-01")
+
+    # prevent background thread/network activity
+    monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
+
+    config = Config(
+        symbol=symbol,
+        risk_pct=0.01,
+        atr_multiplier=0,
+        max_exposure=1.0,
+        stop_loss_pct=0.05,
+        spread_pct=0.02,
+    )
+    bot = TraderBot(config)
+    bot.execute_trade("buy", price, timestamp, symbol)
+    amount = bot.account.positions[symbol]["amount"]
+
+    equity = config.starting_balance
+    stop_distance = price * (config.stop_loss_pct + config.spread_pct / 2)
+    expected_amount = (equity * config.risk_pct) / stop_distance
+
+    assert amount == pytest.approx(expected_amount)
+

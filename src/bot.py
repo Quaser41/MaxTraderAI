@@ -525,7 +525,8 @@ class TraderBot:
                 if self.config.risk_pct > 0 and stop < price:
                     equity = self.account.get_equity()
                     risk_amount = equity * self.config.risk_pct
-                    stop_distance = price - stop
+                    entry_price = price * (1 + self.config.spread_pct / 2)
+                    stop_distance = entry_price - stop
                     amount = risk_amount / stop_distance
                     logging.info(
                         "Calculated trade amount %s risking %.2f (equity %.2f * risk_pct %.4f) with stop %.2f",
