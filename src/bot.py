@@ -247,8 +247,8 @@ class PaperAccount:
         amount = pos["amount"]
         entry_price = pos["price"]
         exit_price = price
-        if trailing_stop is not None and trailing_stop < exit_price:
-            exit_price = trailing_stop
+        if trailing_stop is not None:
+            exit_price = min(trailing_stop, price)
         fee = exit_price * amount * fee_pct
         profit = (exit_price - entry_price) * amount - fee
         self.balance += exit_price * amount - fee
