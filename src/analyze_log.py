@@ -1,5 +1,4 @@
 import argparse
-from collections import defaultdict
 from typing import Dict, List, Optional
 import os
 
