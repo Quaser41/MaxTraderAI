@@ -41,11 +41,12 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
     price = 10.0
     expected_amount = stake_usd / price
     symbol = "TEST-USD"
+    fee_pct = 0.001
 
     # prevent background thread/network activity
     monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
 
-    config = Config(stake_usd=stake_usd, symbol=symbol)
+    config = Config(stake_usd=stake_usd, symbol=symbol, fee_pct=fee_pct)
     bot = TraderBot(config)
     df = pd.DataFrame(
         {
@@ -71,8 +72,38 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
 
     assert rows, "No trades logged"
     assert float(rows[-1]["amount"]) == expected_amount
-    assert "fee" in rows[-1]
+    expected_fee = stake_usd * fee_pct
+    assert float(rows[-1]["fee"]) == pytest.approx(expected_fee)
 
+
+def test_buy_logs_fee(tmp_path):
+    symbol = "TEST-USD"
+    config = Config()
+    account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        buy_time = pd.Timestamp("2024-01-01")
+        price = 100.0
+        amount = 1.0
+        fee_pct = 0.001
+        assert account.buy(
+            price=price,
+            amount=amount,
+            timestamp=buy_time,
+            symbol=symbol,
+            fee_pct=fee_pct,
+        )
+        with open("trade_log.csv", newline="") as f:
+            rows = list(csv.DictReader(f))
+    finally:
+        os.chdir(old_cwd)
+
+    assert len(rows) == 1
+    buy_row = rows[0]
+    expected_fee = price * amount * fee_pct
+    assert float(buy_row["fee"]) == pytest.approx(expected_fee)
 
 def test_sell_logs_fee(tmp_path):
     symbol = "TEST-USD"

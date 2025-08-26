@@ -173,6 +173,7 @@ class PaperAccount:
         amount: float,
         timestamp: pd.Timestamp,
         symbol: str,
+        fee_pct: float = 0.0,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
         trailing_stop_pct: Optional[float] = None,
@@ -180,6 +181,8 @@ class PaperAccount:
         if not symbol:
             raise ValueError("Symbol must be provided for buy")
         cost = price * amount
+        fee = cost * fee_pct
+        total_cost = cost + fee
         logging.info(
             "Computed buy amount %s for %s at price %.2f (cost %.2f)",
             amount,
@@ -190,10 +193,13 @@ class PaperAccount:
         if symbol in self.positions:
             print("Buy skipped: position already open for symbol")
             return False
-        if cost > self.initial_balance * self.max_exposure or cost > self.balance:
+        if (
+            total_cost > self.initial_balance * self.max_exposure
+            or total_cost > self.balance
+        ):
             print("Buy skipped: exposure limit or insufficient balance")
             return False
-        self.balance -= cost
+        self.balance -= total_cost
         self.positions[symbol] = {
             "price": price,
             "amount": amount,
@@ -212,7 +218,7 @@ class PaperAccount:
             "price": price,
             "amount": amount,
             "profit": "",
-            "fee": "",
+            "fee": fee,
             "duration": "",
         }
         self.log.append(entry)
@@ -500,6 +506,7 @@ class TraderBot:
                     amount=amount,
                     timestamp=timestamp,
                     symbol=symbol,
+                    fee_pct=self.config.fee_pct,
                     stop_loss=stop,
                     take_profit=target,
                     trailing_stop_pct=self.config.trailing_stop_pct,
