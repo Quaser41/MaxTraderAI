@@ -257,7 +257,7 @@ class PaperAccount:
         amount = pos["amount"]
         entry_price = pos["price"]
         exit_price = price * (1 - self.config.spread_pct / 2)
-        if trailing_stop is not None and trailing_stop < exit_price:
+        if trailing_stop is not None and trailing_stop <= exit_price:
             exit_price = trailing_stop * (1 - self.config.spread_pct / 2)
         fee = exit_price * amount * fee_pct
         profit = (exit_price - entry_price) * amount - fee
