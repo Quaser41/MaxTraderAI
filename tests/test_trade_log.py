@@ -123,16 +123,22 @@ def test_sell_logs_fee(tmp_path):
     try:
         buy_time = pd.Timestamp("2024-01-01")
         sell_time = buy_time + pd.Timedelta(hours=1)
-        assert account.buy(
-            price=100.0, amount=1.0, timestamp=buy_time, symbol=symbol
-        )
+        buy_fee_pct = 0.001
+        sell_fee_pct = 0.002
+        buy_price = 100.0
         sell_price = 110.0
-        fee_pct = 0.001
+        assert account.buy(
+            price=buy_price,
+            amount=1.0,
+            timestamp=buy_time,
+            symbol=symbol,
+            fee_pct=buy_fee_pct,
+        )
         assert account.sell(
             price=sell_price,
             timestamp=sell_time,
             symbol=symbol,
-            fee_pct=fee_pct,
+            fee_pct=sell_fee_pct,
         )
         with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
@@ -141,9 +147,13 @@ def test_sell_logs_fee(tmp_path):
 
     assert len(rows) == 2
     sell_row = rows[1]
-    expected_fee = sell_price * 1.0 * fee_pct
+    expected_buy_fee = buy_price * 1.0 * buy_fee_pct
+    expected_sell_fee = sell_price * 1.0 * sell_fee_pct
+    expected_fee = expected_buy_fee + expected_sell_fee
+    expected_profit = (sell_price - buy_price) - expected_fee
     assert "fee" in sell_row
     assert float(sell_row["fee"]) == pytest.approx(expected_fee)
+    assert float(sell_row["profit"]) == pytest.approx(expected_profit)
 
 
 def test_spread_adjusts_pnl(tmp_path):

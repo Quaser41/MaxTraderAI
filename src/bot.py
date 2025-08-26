@@ -244,6 +244,7 @@ class PaperAccount:
             "take_profit": take_profit,
             "highest_price": effective_price,
             "trailing_stop_pct": trailing_stop_pct,
+            "buy_fee": fee,
         }
         self.peak_balance = max(self.peak_balance, self.balance)
         entry = {
@@ -282,10 +283,12 @@ class PaperAccount:
         amount = pos["amount"]
         entry_price = pos["price"]
         exit_price = price * (1 - self.config.spread_pct / 2)
-        if trailing_stop is not None and trailing_stop < exit_price:
+        if trailing_stop is not None and trailing_stop <= exit_price:
             exit_price = trailing_stop * (1 - self.config.spread_pct / 2)
         fee = exit_price * amount * fee_pct
-        profit = (exit_price - entry_price) * amount - fee
+        buy_fee = float(pos.get("buy_fee", 0.0))
+        total_fee = fee + buy_fee
+        profit = (exit_price - entry_price) * amount - total_fee
         self.balance += exit_price * amount - fee
         self.peak_balance = max(self.peak_balance, self.balance)
         duration = timestamp - pos["timestamp"]
@@ -296,7 +299,7 @@ class PaperAccount:
             "price": exit_price,
             "amount": amount,
             "profit": profit,
-            "fee": fee,
+            "fee": total_fee,
             "duration": duration.total_seconds(),
         }
         self.log.append(entry)
