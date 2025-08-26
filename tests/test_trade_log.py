@@ -136,3 +136,31 @@ def test_sell_logs_fee(tmp_path):
     expected_fee = sell_price * 1.0 * fee_pct
     assert "fee" in sell_row
     assert float(sell_row["fee"]) == pytest.approx(expected_fee)
+
+
+def test_spread_adjusts_pnl(tmp_path):
+    symbol = "TEST-USD"
+    spread_pct = 0.02
+    config = Config(spread_pct=spread_pct)
+    account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        buy_time = pd.Timestamp("2024-01-01")
+        sell_time = buy_time + pd.Timedelta(hours=1)
+        assert account.buy(price=100.0, amount=1.0, timestamp=buy_time, symbol=symbol)
+        assert account.sell(price=110.0, timestamp=sell_time, symbol=symbol)
+        with open("trade_log.csv", newline="") as f:
+            rows = list(csv.DictReader(f))
+    finally:
+        os.chdir(old_cwd)
+
+    assert len(rows) == 2
+    buy_row, sell_row = rows
+    expected_buy_price = 100.0 * (1 + spread_pct / 2)
+    expected_sell_price = 110.0 * (1 - spread_pct / 2)
+    expected_profit = expected_sell_price - expected_buy_price
+    assert float(buy_row["price"]) == pytest.approx(expected_buy_price)
+    assert float(sell_row["price"]) == pytest.approx(expected_sell_price)
+    assert float(sell_row["profit"]) == pytest.approx(expected_profit)
