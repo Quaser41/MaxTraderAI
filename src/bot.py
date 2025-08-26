@@ -149,21 +149,28 @@ class PaperAccount:
             raise ValueError(f"Cannot log trade without symbol: {entry}")
 
         path = "trade_log.csv"
+        header = [
+            "timestamp",
+            "symbol",
+            "side",
+            "price",
+            "amount",
+            "profit",
+            "fee",
+            "duration",
+        ]
         file_exists = os.path.isfile(path)
+        if file_exists:
+            with open(path, newline="") as f:
+                reader = csv.reader(f)
+                first_row = next(reader, [])
+            if first_row != header:
+                with open(path, "w", newline="") as f:
+                    csv.writer(f).writerow(header)
+                file_exists = True
+
         with open(path, "a", newline="") as f:
-            writer = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "timestamp",
-                    "symbol",
-                    "side",
-                    "price",
-                    "amount",
-                    "profit",
-                    "fee",
-                    "duration",
-                ],
-            )
+            writer = csv.DictWriter(f, fieldnames=header)
             if not file_exists:
                 writer.writeheader()
             writer.writerow(entry)
