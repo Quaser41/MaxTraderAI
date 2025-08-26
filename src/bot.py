@@ -180,14 +180,16 @@ class PaperAccount:
     ) -> bool:
         if not symbol:
             raise ValueError("Symbol must be provided for buy")
-        cost = price * amount
+        spread_pct = self.config.spread_pct
+        effective_price = price * (1 + spread_pct / 2)
+        cost = effective_price * amount
         fee = cost * fee_pct
         total_cost = cost + fee
         logging.info(
             "Computed buy amount %s for %s at price %.2f (cost %.2f)",
             amount,
             symbol,
-            price,
+            effective_price,
             cost,
         )
         if symbol in self.positions:
@@ -201,13 +203,13 @@ class PaperAccount:
             return False
         self.balance -= total_cost
         self.positions[symbol] = {
-            "price": price,
+            "price": effective_price,
             "amount": amount,
             "timestamp": timestamp,
             "symbol": symbol,
             "stop_loss": stop_loss,
             "take_profit": take_profit,
-            "highest_price": price,
+            "highest_price": effective_price,
             "trailing_stop_pct": trailing_stop_pct,
         }
         self.peak_balance = max(self.peak_balance, self.balance)
@@ -215,7 +217,7 @@ class PaperAccount:
             "timestamp": timestamp.isoformat(),
             "symbol": symbol,
             "side": "buy",
-            "price": price,
+            "price": effective_price,
             "amount": amount,
             "profit": "",
             "fee": fee,
@@ -224,7 +226,7 @@ class PaperAccount:
         self.log.append(entry)
         self._log_to_file(entry)
         print(
-            f"BUY {symbol} {amount} at {price:.2f} -- balance {self.balance:.2f}"
+            f"BUY {symbol} {amount} at {effective_price:.2f} -- balance {self.balance:.2f}"
         )
         return True
 
@@ -246,9 +248,9 @@ class PaperAccount:
             return False
         amount = pos["amount"]
         entry_price = pos["price"]
-        exit_price = price
+        exit_price = price * (1 - self.config.spread_pct / 2)
         if trailing_stop is not None and trailing_stop < exit_price:
-            exit_price = trailing_stop
+            exit_price = trailing_stop * (1 - self.config.spread_pct / 2)
         fee = exit_price * amount * fee_pct
         profit = (exit_price - entry_price) * amount - fee
         self.balance += exit_price * amount - fee
