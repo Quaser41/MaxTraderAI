@@ -194,7 +194,7 @@ class PaperAccount:
             print("Buy skipped: position already open for symbol")
             return False
         if (
-            total_cost > self.initial_balance * self.max_exposure
+            total_cost > self.get_equity() * self.max_exposure
             or total_cost > self.balance
         ):
             print("Buy skipped: exposure limit or insufficient balance")
