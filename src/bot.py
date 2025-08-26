@@ -557,10 +557,11 @@ class TraderBot:
                                 "Capping amount to %s due to capital limit",
                                 amount,
                             )
+                    actual_risk = amount * stop_distance
                     logging.info(
                         "Calculated trade amount %s risking %.2f (equity %.2f * risk_pct %.4f) with stop %.2f",
                         amount,
-                        risk_amount,
+                        actual_risk,
                         equity,
                         self.config.risk_pct,
                         stop,
