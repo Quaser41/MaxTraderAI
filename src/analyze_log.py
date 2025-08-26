@@ -52,16 +52,27 @@ def analyze(log_path: str = "trade_log.csv", symbol: Optional[str] = None) -> No
         df["profit"] = df["profit"].fillna(0.0)
 
     sells = df[df["side"] == "sell"]
+    buys = df[df["side"] == "buy"]
     profits = sells["profit"].astype(float)
     total_profit = float(profits.sum())
+    sell_fee_sum = float(sells.get("fee", 0.0).fillna(0.0).sum())
+    if sell_fee_sum == 0:
+        total_profit -= float(buys.get("fee", 0.0).fillna(0.0).sum())
     trades = len(profits)
     wins = int((profits > 0).sum())
     win_rate = 100 * wins / trades if trades else 0.0
-    per_symbol = (
-        sells.groupby("symbol")["profit"].sum().astype(float).to_dict()
-        if not sells.empty
-        else {}
-    )
+    per_symbol: Dict[str, float] = {}
+    for sym in sells["symbol"].unique():
+        sell_grp = sells[sells["symbol"] == sym]
+        buy_grp = buys[buys["symbol"] == sym]
+        sell_profit = float(sell_grp["profit"].astype(float).sum())
+        sell_fee = float(sell_grp.get("fee", 0.0).fillna(0.0).sum())
+        buy_fee = float(buy_grp.get("fee", 0.0).fillna(0.0).sum())
+        if sell_fee > 0:
+            pnl = sell_profit + sell_fee - buy_fee
+        else:
+            pnl = sell_profit - buy_fee
+        per_symbol[sym] = pnl
 
     print(f"Net profit: {total_profit:.2f}")
     print(f"Win rate: {win_rate:.1f}% ({wins}/{trades})")

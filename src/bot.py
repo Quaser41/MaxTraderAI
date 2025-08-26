@@ -527,7 +527,36 @@ class TraderBot:
                     risk_amount = equity * self.config.risk_pct
                     entry_price = price * (1 + self.config.spread_pct / 2)
                     stop_distance = entry_price - stop
+                    if stop_distance <= 0:
+                        logging.warning(
+                            "Buy skipped: non-positive stop distance (entry %.2f, stop %.2f)",
+                            entry_price,
+                            stop,
+                        )
+                        return
                     amount = risk_amount / stop_distance
+                    max_capital = self.account.balance * self.config.max_exposure
+                    cost = amount * entry_price
+                    if cost > max_capital:
+                        logging.info(
+                            "Risk-based amount cost %.2f exceeds max exposure %.2f",
+                            cost,
+                            max_capital,
+                        )
+                        stake_amount = self.config.stake_usd / price if price > 0 else 0.0
+                        stake_cost = stake_amount * entry_price
+                        if stake_amount > 0 and stake_cost <= max_capital:
+                            amount = stake_amount
+                            logging.info(
+                                "Using stake-based amount %s due to capital limit",
+                                amount,
+                            )
+                        else:
+                            amount = max_capital / entry_price if entry_price > 0 else 0.0
+                            logging.info(
+                                "Capping amount to %s due to capital limit",
+                                amount,
+                            )
                     logging.info(
                         "Calculated trade amount %s risking %.2f (equity %.2f * risk_pct %.4f) with stop %.2f",
                         amount,
