@@ -15,13 +15,13 @@ from bot import Config, TraderBot, SymbolFetcher
 def test_execute_trade_respects_max_tokens(tmp_path, monkeypatch):
     symbol = "TEST-USD"
     price = 10.0
-    stake_usd = 100.0
-    max_tokens = 5.0  # stake_usd/price = 10, so should cap at 5
+    risk_pct = 0.015
+    max_tokens = 5.0  # risk-based amount will exceed this and should cap
 
     # prevent background thread/network activity
     monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
 
-    config = Config(symbol=symbol, stake_usd=stake_usd, max_tokens=max_tokens)
+    config = Config(symbol=symbol, risk_pct=risk_pct, max_tokens=max_tokens, atr_multiplier=0)
     bot = TraderBot(config)
     df = pd.DataFrame(
         {

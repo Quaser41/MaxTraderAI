@@ -26,6 +26,7 @@ class Config:
     timeframe: str = "1m"
     exchange: str = "binanceus"
     stake_usd: float = 100.0  # trade size in USD
+    risk_pct: float = 0.01  # fraction of equity to risk per trade
     max_tokens: float = float("inf")  # maximum token quantity per trade
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
@@ -486,13 +487,27 @@ class TraderBot:
                         self.config.min_edge_pct,
                     )
                     return
-                amount = self.config.stake_usd / price
-                logging.info(
-                    "Calculated trade amount %s for stake %.2f at price %.2f",
-                    amount,
-                    self.config.stake_usd,
-                    price,
-                )
+                if self.config.risk_pct > 0 and stop < price:
+                    equity = self.account.get_equity()
+                    risk_amount = equity * self.config.risk_pct
+                    stop_distance = price - stop
+                    amount = risk_amount / stop_distance
+                    logging.info(
+                        "Calculated trade amount %s risking %.2f (equity %.2f * risk_pct %.4f) with stop %.2f",
+                        amount,
+                        risk_amount,
+                        equity,
+                        self.config.risk_pct,
+                        stop,
+                    )
+                else:
+                    amount = self.config.stake_usd / price
+                    logging.info(
+                        "Calculated trade amount %s for stake %.2f at price %.2f",
+                        amount,
+                        self.config.stake_usd,
+                        price,
+                    )
                 if amount > self.config.max_tokens:
                     logging.warning(
                         "Amount %s exceeds max_tokens %s; capping",
