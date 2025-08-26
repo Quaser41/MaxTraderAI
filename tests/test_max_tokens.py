@@ -40,7 +40,7 @@ def test_execute_trade_respects_max_tokens(tmp_path, monkeypatch):
     try:
         timestamp = pd.Timestamp("2024-01-01")
         bot.execute_trade("buy", price, timestamp, symbol)
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)

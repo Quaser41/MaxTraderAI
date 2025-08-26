@@ -28,7 +28,7 @@ def test_log_entry_requires_symbol(tmp_path):
         }
         with pytest.raises(ValueError):
             account._log_to_file(entry)
-        assert not os.path.exists("trade_log.csv")
+        assert not os.path.exists(os.path.join("logs", "trade_log.csv"))
         with pytest.raises(ValueError):
             account.buy(price=100.0, amount=1.0, timestamp=pd.Timestamp("2024-01-01"), symbol="")
         assert account.log == []

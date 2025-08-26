@@ -10,6 +10,8 @@ from typing import Optional, List, Dict
 import time
 import csv
 import os
+import shutil
+from datetime import datetime
 import logging
 import threading
 import pandas as pd
@@ -136,6 +138,11 @@ class PaperAccount:
         # retain reference to the configuration so we can log the active symbol
         self.config = config
 
+        # log file management
+        self.log_dir = "logs"
+        self.log_file = os.path.join(self.log_dir, "trade_log.csv")
+        self._prepare_log_file()
+
     def get_equity(self) -> float:
         """Return current account equity using the most recent prices."""
         return self.balance + sum(
@@ -143,12 +150,30 @@ class PaperAccount:
             for pos in self.positions.values()
         )
 
+    def _prepare_log_file(self) -> None:
+        os.makedirs(self.log_dir, exist_ok=True)
+        # move any existing log file to a timestamped name
+        legacy_paths = ["trade_log.csv", self.log_file]
+        for path in legacy_paths:
+            if os.path.exists(path):
+                date_str = datetime.now().strftime("%Y%m%d")
+                dest = os.path.join(self.log_dir, f"trade_log_{date_str}.csv")
+                counter = 1
+                while os.path.exists(dest):
+                    dest = os.path.join(
+                        self.log_dir, f"trade_log_{date_str}_{counter}.csv"
+                    )
+                    counter += 1
+                shutil.move(path, dest)
+                break
+
     def _log_to_file(self, entry: Dict) -> None:
         symbol = entry.get("symbol")
         if not symbol:
             raise ValueError(f"Cannot log trade without symbol: {entry}")
 
-        path = "trade_log.csv"
+        os.makedirs(self.log_dir, exist_ok=True)
+        path = self.log_file
         header = [
             "timestamp",
             "symbol",

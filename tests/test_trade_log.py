@@ -26,7 +26,7 @@ def test_trade_log_contains_symbol(tmp_path):
             price=100.0, amount=1.0, timestamp=timestamp, symbol=symbol
         )
 
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)
@@ -73,7 +73,7 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
     try:
         timestamp = pd.Timestamp("2024-01-01")
         bot.execute_trade("buy", price, timestamp, symbol)
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)
@@ -103,7 +103,7 @@ def test_buy_logs_fee(tmp_path):
             symbol=symbol,
             fee_pct=fee_pct,
         )
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)
@@ -134,7 +134,7 @@ def test_sell_logs_fee(tmp_path):
             symbol=symbol,
             fee_pct=fee_pct,
         )
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)
@@ -159,7 +159,7 @@ def test_spread_adjusts_pnl(tmp_path):
         sell_time = buy_time + pd.Timedelta(hours=1)
         assert account.buy(price=100.0, amount=1.0, timestamp=buy_time, symbol=symbol)
         assert account.sell(price=110.0, timestamp=sell_time, symbol=symbol)
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
     finally:
         os.chdir(old_cwd)
