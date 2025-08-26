@@ -32,7 +32,7 @@ def test_trade_log_contains_symbol(tmp_path):
         os.chdir(old_cwd)
 
     assert rows and rows[0]["symbol"] == symbol
-    assert "fee" in rows[0]
+    assert rows[0]["fee"] != ""
 
 
 def test_execute_trade_logs_amount(tmp_path, monkeypatch):
@@ -71,7 +71,7 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
 
     assert rows, "No trades logged"
     assert float(rows[-1]["amount"]) == expected_amount
-    assert "fee" in rows[-1]
+    assert rows[-1]["fee"] != ""
 
 
 def test_sell_logs_fee(tmp_path):
@@ -101,7 +101,8 @@ def test_sell_logs_fee(tmp_path):
         os.chdir(old_cwd)
 
     assert len(rows) == 2
+    buy_row = rows[0]
     sell_row = rows[1]
     expected_fee = sell_price * 1.0 * fee_pct
-    assert "fee" in sell_row
+    assert buy_row["fee"] != ""
     assert float(sell_row["fee"]) == pytest.approx(expected_fee)

@@ -135,6 +135,14 @@ class PaperAccount:
         # retain reference to the configuration so we can log the active symbol
         self.config = config
 
+        # remove or archive existing trade log to start fresh each run
+        log_path = "trade_log.csv"
+        if os.path.isfile(log_path):
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            archive_path = f"trade_log_{timestamp}.csv"
+            os.rename(log_path, archive_path)
+            logging.info("Archived existing trade log to %s", archive_path)
+
     def get_equity(self) -> float:
         """Return current account equity using the most recent prices."""
         return self.balance + sum(
@@ -144,11 +152,14 @@ class PaperAccount:
 
     def _log_to_file(self, entry: Dict) -> None:
         symbol = entry.get("symbol")
+        fee = entry.get("fee")
         if not symbol:
             raise ValueError(f"Cannot log trade without symbol: {entry}")
+        if fee in (None, ""):
+            raise ValueError(f"Cannot log trade without fee: {entry}")
 
         path = "trade_log.csv"
-        file_exists = os.path.isfile(path)
+        file_exists = os.path.isfile(path) and os.path.getsize(path) > 0
         with open(path, "a", newline="") as f:
             writer = csv.DictWriter(
                 f,
@@ -212,7 +223,7 @@ class PaperAccount:
             "price": price,
             "amount": amount,
             "profit": "",
-            "fee": "",
+            "fee": 0.0,
             "duration": "",
         }
         self.log.append(entry)
