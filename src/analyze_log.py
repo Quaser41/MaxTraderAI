@@ -1,5 +1,8 @@
 import argparse
-from typing import Optional
+from collections import defaultdict
+from typing import Dict, List, Optional
+import os
+
 
 import pandas as pd
 
@@ -9,10 +12,30 @@ def analyze(log_path: str = "trade_log.csv", symbol: Optional[str] = None) -> No
 
     Parameters
     ----------
-    log_path: Path to the CSV trade log.
+    log_path: Path to the CSV trade log or directory of logs.
     symbol: Optional symbol to filter on.
     """
-    df = pd.read_csv(log_path, on_bad_lines="skip")
+    paths: List[str]
+    if os.path.isdir(log_path):
+        paths = [
+            os.path.join(log_path, p)
+            for p in os.listdir(log_path)
+            if p.endswith(".csv")
+        ]
+    else:
+        paths = [log_path]
+
+    dfs = []
+    for p in paths:
+        try:
+            dfs.append(pd.read_csv(p, on_bad_lines="skip"))
+        except FileNotFoundError:
+            continue
+    if not dfs:
+        print("No trades found")
+        return
+
+    df = pd.concat(dfs, ignore_index=True)
     df = df.dropna(subset=["symbol"])  # ignore malformed rows
     if symbol:
         df = df[df["symbol"] == symbol]
@@ -50,8 +73,10 @@ def analyze(log_path: str = "trade_log.csv", symbol: Optional[str] = None) -> No
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze a trade log CSV")
-    parser.add_argument("--path", default="trade_log.csv", help="Path to trade log")
+    parser = argparse.ArgumentParser(description="Analyze trade log CSV files")
+    parser.add_argument(
+        "--path", default="trade_log.csv", help="Path to trade log file or directory"
+    )
     parser.add_argument("--symbol", help="Filter by symbol")
     args = parser.parse_args()
     analyze(args.path, symbol=args.symbol)

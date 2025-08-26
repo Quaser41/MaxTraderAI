@@ -28,7 +28,7 @@ def test_sell_nonexistent_symbol(tmp_path):
         assert result is False
 
         assert len(account.log) == 1
-        with open("trade_log.csv", newline="") as f:
+        with open(os.path.join("logs", "trade_log.csv"), newline="") as f:
             rows = list(csv.DictReader(f))
         assert len(rows) == 1
         assert rows[0]["side"] == "buy"
