@@ -37,16 +37,24 @@ def test_trade_log_contains_symbol(tmp_path):
 
 def test_execute_trade_logs_amount(tmp_path, monkeypatch):
     """Ensure TraderBot passes the calculated amount through to the CSV."""
-    stake_usd = 50.0
+    risk_pct = 0.01
     price = 10.0
-    expected_amount = stake_usd / price
+    stop_loss_pct = 0.02
+    equity = 1000.0
+    expected_amount = (equity * risk_pct) / (price * stop_loss_pct)
     symbol = "TEST-USD"
     fee_pct = 0.001
 
     # prevent background thread/network activity
     monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
 
-    config = Config(stake_usd=stake_usd, symbol=symbol, fee_pct=fee_pct)
+    config = Config(
+        risk_pct=risk_pct,
+        symbol=symbol,
+        fee_pct=fee_pct,
+        atr_multiplier=0,
+        starting_balance=equity,
+    )
     bot = TraderBot(config)
     df = pd.DataFrame(
         {
@@ -71,8 +79,8 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
         os.chdir(old_cwd)
 
     assert rows, "No trades logged"
-    assert float(rows[-1]["amount"]) == expected_amount
-    expected_fee = stake_usd * fee_pct
+    assert float(rows[-1]["amount"]) == pytest.approx(expected_amount)
+    expected_fee = price * expected_amount * fee_pct
     assert float(rows[-1]["fee"]) == pytest.approx(expected_fee)
 
 
