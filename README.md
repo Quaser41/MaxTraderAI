@@ -6,6 +6,8 @@ This repository explores building an autonomous cryptocurrency trading bot.
 
 The example bot in `src/bot.py` fetches price data from cryptocurrency exchanges via the [`ccxt`](https://github.com/ccxt/ccxt) library (default `binanceus`) and demonstrates a simple moving average crossover strategy. A built-in paper trading account simulates trades with a starting balance of $1000 and a maximum exposure of 75% of the account. Each trade is logged to `trade_log.csv` with profit or loss and the duration the position was held. Stop‑loss and take‑profit levels are applied to every position, and the bot halts if account drawdown exceeds a configurable threshold.
 
+By default the bot uses a 5‑minute timeframe with 20/50 EMA spans and RSI thresholds of 60/40. This slower configuration reduces trade frequency and may improve win rate by filtering out some market noise.
+
 
 ## Disclaimer
 This project is for educational purposes only and does not constitute financial or investment advice. Use at your own risk.
@@ -30,9 +32,9 @@ Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/
 
 The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0.1`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check.
 
-The strategy also calculates a 14-period Relative Strength Index (RSI) and only allows a trade when this value is above `rsi_buy_threshold` (default 55) for buys or below `rsi_sell_threshold` (default 45) for sells. The RSI period and thresholds are configurable via `rsi_period`, `rsi_buy_threshold`, and `rsi_sell_threshold` in `Config`.
+The strategy also calculates a 14-period Relative Strength Index (RSI) and only allows a trade when this value is above `rsi_buy_threshold` (default 60) for buys or below `rsi_sell_threshold` (default 40) for sells. The RSI period and thresholds are configurable via `rsi_period`, `rsi_buy_threshold`, and `rsi_sell_threshold` in `Config`.
 
-To control how often the strategy trades, adjust the `timeframe` along with the `ema_fast_span` and `ema_slow_span` settings in `Config`. Shorter timeframes like `"1m"` or `"5m"` provide more frequent price updates, while smaller EMA spans make crossovers more responsive. These tweaks are useful to trigger trades during brief test runs. For example:
+To control how often the strategy trades, adjust the `timeframe` along with the `ema_fast_span` and `ema_slow_span` settings in `Config`. Shorter timeframes like `"1m"` provide more frequent price updates, while smaller EMA spans make crossovers more responsive. The default 5‑minute timeframe with 20/50 spans trades less often, which may improve win rate. These tweaks are useful to trigger trades during brief test runs. For example:
 
 ```python
 Config(timeframe="1m", ema_fast_span=5, ema_slow_span=15)

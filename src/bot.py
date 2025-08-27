@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 class Config:
 
     symbol: str = "BTC-USD"
-    timeframe: str = "1m"
+    timeframe: str = "5m"
     exchange: str = "binanceus"
     stake_usd: float = 100.0  # trade size in USD
     risk_pct: float = 0.01  # fraction of equity to risk per trade
@@ -36,8 +36,8 @@ class Config:
     take_profit_pct: float = 0.04  # 4% take profit target
     atr_multiplier: float = 1.0  # ATR multiple for stop-loss and take-profit
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
-    ema_fast_span: int = 12  # fast EMA span for crossover
-    ema_slow_span: int = 26  # slow EMA span for crossover
+    ema_fast_span: int = 20  # fast EMA span for crossover
+    ema_slow_span: int = 50  # slow EMA span for crossover
     drawdown_cooldown: int = 300  # seconds to pause after max drawdown
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
@@ -47,8 +47,8 @@ class Config:
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
     rsi_period: int = 14  # period for RSI calculation
-    rsi_buy_threshold: float = 55.0  # minimum RSI for buy signals
-    rsi_sell_threshold: float = 45.0  # maximum RSI for sell signals
+    rsi_buy_threshold: float = 60.0  # minimum RSI for buy signals
+    rsi_sell_threshold: float = 40.0  # maximum RSI for sell signals
     rsi_std_multiplier: float = 1.0  # std-dev multiplier for adaptive RSI
     ema_threshold_mult: float = 0.0  # volatility factor for EMA crossover
     spread_pct: float = 0.0005  # estimated bid/ask spread percentage
