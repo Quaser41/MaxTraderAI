@@ -9,7 +9,7 @@ from bot import Config, PaperAccount
 
 
 def test_pnl_by_symbol_window():
-    config = Config()
+    config = Config(fee_pct=0.0, spread_pct=0.0)
     account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
     ts = pd.Timestamp("2024-01-01")
 
