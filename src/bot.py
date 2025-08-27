@@ -42,7 +42,7 @@ class Config:
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
     pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
-    min_profit_threshold: float = 0.0  # minimum profit to keep trading a symbol
+    min_profit_threshold: float = 0.1  # minimum profit to keep trading a symbol
     fee_pct: float = 0.001  # exchange fee percentage applied on sells
     trailing_stop_pct: float = 0.0  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
@@ -623,7 +623,9 @@ class TraderBot:
                 if not symbol:
                     logging.warning("Encountered empty symbol; skipping trade execution")
                     continue
-                pnl = self.account.pnl_by_symbol(self.config.pnl_window).get(symbol, 0.0)
+                pnl = self.account.pnl_by_symbol(self.config.pnl_window).get(
+                    symbol, self.config.min_profit_threshold
+                )
                 if pnl < self.config.min_profit_threshold:
                     logging.info(
                         "Skipping %s due to PnL %.2f below threshold %.2f",
