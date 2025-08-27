@@ -44,7 +44,7 @@ class Config:
     pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
     min_profit_threshold: float = 0.1  # minimum profit to keep trading a symbol
     fee_pct: float = 0.001  # exchange fee percentage applied on sells
-    trailing_stop_pct: float = 0.0  # percentage for trailing stop (0 to disable)
+    trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
     rsi_period: int = 14  # period for RSI calculation
     rsi_buy_threshold: float = 55.0  # minimum RSI for buy signals
@@ -211,6 +211,7 @@ class PaperAccount:
         take_profit: Optional[float] = None,
         trailing_stop_pct: Optional[float] = None,
     ) -> bool:
+        """Open a position and record optional trailing-stop settings."""
         if not symbol:
             raise ValueError("Symbol must be provided for buy")
         spread_pct = self.config.spread_pct
@@ -272,6 +273,7 @@ class PaperAccount:
         fee_pct: float = 0.0,
         trailing_stop: Optional[float] = None,
     ) -> bool:
+        """Close a position, optionally respecting a trailing-stop price."""
         if not symbol:
             raise ValueError("Symbol must be provided for sell")
         pos = self.positions.get(symbol)
