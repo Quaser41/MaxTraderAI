@@ -14,7 +14,7 @@ from bot import Config, PaperAccount, TraderBot, SymbolFetcher
 
 def test_trade_log_contains_symbol(tmp_path):
     symbol = "TEST-USD"
-    config = Config()
+    config = Config(fee_pct=0.0, spread_pct=0.0)
     account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
 
     # operate within temporary directory
@@ -52,6 +52,7 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
         risk_pct=risk_pct,
         symbol=symbol,
         fee_pct=fee_pct,
+        spread_pct=0.0,
         atr_multiplier=0,
         starting_balance=equity,
     )
@@ -86,7 +87,7 @@ def test_execute_trade_logs_amount(tmp_path, monkeypatch):
 
 def test_buy_logs_fee(tmp_path):
     symbol = "TEST-USD"
-    config = Config()
+    config = Config(fee_pct=0.0, spread_pct=0.0)
     account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
 
     old_cwd = os.getcwd()
@@ -115,7 +116,7 @@ def test_buy_logs_fee(tmp_path):
 
 def test_sell_logs_fee(tmp_path):
     symbol = "TEST-USD"
-    config = Config()
+    config = Config(fee_pct=0.0, spread_pct=0.0)
     account = PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
 
     old_cwd = os.getcwd()
