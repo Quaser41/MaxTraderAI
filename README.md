@@ -30,12 +30,16 @@ pip install -r requirements.txt
 
 Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
+
+`stake_usd` and `risk_pct` set trade size; at least one of them must be greater than zero. `max_tokens` also needs to be a positive number. The bot validates these minimum values on startup and raises an error if the resulting trade size is not positive.
+
 Because every trade pays fees and crosses the bid/ask spread, the bot only
 enters positions when the profit target exceeds these costs plus a minimum
 required edge. Total trading costs are computed as `fee_pct*2 + spread_pct`
 and compared against `take_profit_pct - min_edge_pct`. If the target is too
 small to cover costs and the desired edge, the bot logs a warning and skips
 trades.
+
 
 The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0.1`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check.
 
