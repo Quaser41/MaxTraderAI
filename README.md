@@ -30,6 +30,8 @@ pip install -r requirements.txt
 
 Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
+`stake_usd` and `risk_pct` set trade size; at least one of them must be greater than zero. `max_tokens` also needs to be a positive number. The bot validates these minimum values on startup and raises an error if the resulting trade size is not positive.
+
 The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0.1`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check.
 
 The strategy also calculates a 14-period Relative Strength Index (RSI) and only allows a trade when this value is above `rsi_buy_threshold` (default 60) for buys or below `rsi_sell_threshold` (default 40) for sells. The RSI period and thresholds are configurable via `rsi_period`, `rsi_buy_threshold`, and `rsi_sell_threshold` in `Config`.

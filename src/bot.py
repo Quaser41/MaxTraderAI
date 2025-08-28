@@ -27,9 +27,9 @@ class Config:
     symbol: str = "BTC-USD"
     timeframe: str = "5m"
     exchange: str = "binanceus"
-    stake_usd: float = 100.0  # trade size in USD
-    risk_pct: float = 0.01  # fraction of equity to risk per trade
-    max_tokens: float = float("inf")  # maximum token quantity per trade
+    stake_usd: float = 100.0  # trade size in USD (must be > 0 if used)
+    risk_pct: float = 0.01  # fraction of equity to risk per trade (must be > 0 if used)
+    max_tokens: float = float("inf")  # maximum token quantity per trade (must be > 0)
     starting_balance: float = 1000.0
     max_exposure: float = 0.75  # fraction of account allowed in a single trade
     stop_loss_pct: float = 0.02  # 2% stop loss
@@ -401,10 +401,32 @@ class TraderBot:
         self.account = PaperAccount(
             config.starting_balance, config.max_exposure, config
         )
+        self._validate_trade_size()
         self.symbol_fetcher = SymbolFetcher(min_price=config.min_price)
         self.symbol_fetcher.start()
         self.symbol_fetcher.wait_until_ready()
         self.last_summary = time.time()
+
+    def _validate_trade_size(self) -> None:
+        """Ensure configuration results in a positive trade size."""
+        price = 1.0  # use nominal price; ratios are price-invariant
+        stake_amount = self.config.stake_usd / price if price > 0 else 0.0
+        equity = self.account.initial_balance
+        stop_distance = price * (
+            self.config.stop_loss_pct + self.config.spread_pct / 2
+        )
+        risk_amount = (
+            equity * self.config.risk_pct / stop_distance
+            if stop_distance > 0
+            else 0.0
+        )
+        stake_amount = min(stake_amount, self.config.max_tokens)
+        risk_amount = min(risk_amount, self.config.max_tokens)
+        if stake_amount <= 0 and risk_amount <= 0:
+            raise ValueError(
+                "Configuration results in non-positive trade size; "
+                "check stake_usd, risk_pct, and max_tokens."
+            )
 
     def fetch_candles_ccxt(
         self, exchange_name: str = "binanceus", symbol: Optional[str] = None
