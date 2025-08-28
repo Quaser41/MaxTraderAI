@@ -23,6 +23,15 @@ logging.basicConfig(level=logging.INFO)
 
 @dataclass
 class Config:
+    """Trading parameters for :class:`TraderBot`.
+
+    ``take_profit_pct`` must exceed the total trading costs plus a minimum
+    required edge for a position to be considered. The costs combine entry and
+    exit fees with the estimated bid/ask spread and are computed as
+    ``fee_pct * 2 + spread_pct``. If ``take_profit_pct`` is less than or equal
+    to ``costs + min_edge_pct``, the bot will skip trades because the potential
+    profit cannot cover expenses and the desired edge.
+    """
 
     symbol: str = "BTC-USD"
     timeframe: str = "5m"
@@ -398,6 +407,14 @@ class PaperAccount:
 class TraderBot:
     def __init__(self, config: Config):
         self.config = config
+        self.costs = config.fee_pct * 2 + config.spread_pct
+        if config.take_profit_pct <= self.costs + config.min_edge_pct:
+            logging.warning(
+                "take_profit_pct %.4f is <= costs %.4f + min_edge_pct %.4f; trades will be skipped due to insufficient edge",
+                config.take_profit_pct,
+                self.costs,
+                config.min_edge_pct,
+            )
         self.account = PaperAccount(
             config.starting_balance, config.max_exposure, config
         )
@@ -492,7 +509,7 @@ class TraderBot:
         self, side: str, price: float, timestamp: pd.Timestamp, symbol: str
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
-        costs = self.config.fee_pct * 2 + self.config.spread_pct
+        costs = self.costs
         if side == "buy":
             atr = None
             if self.config.atr_multiplier > 0:
