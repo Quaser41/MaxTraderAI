@@ -176,6 +176,20 @@ class PaperAccount:
                 shutil.move(path, dest)
                 break
 
+        # always create a fresh log file with header so it exists even with no trades
+        header = [
+            "timestamp",
+            "symbol",
+            "side",
+            "price",
+            "amount",
+            "profit",
+            "fee",
+            "duration",
+        ]
+        with open(self.log_file, "w", newline="") as f:
+            csv.writer(f).writerow(header)
+
     def _log_to_file(self, entry: Dict) -> None:
         symbol = entry.get("symbol")
         if not symbol:
