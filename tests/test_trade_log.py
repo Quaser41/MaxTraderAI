@@ -12,6 +12,33 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 from bot import Config, PaperAccount, TraderBot, SymbolFetcher
 
 
+def test_log_file_created_with_header(tmp_path):
+    """PaperAccount initialization creates a log file with only the header."""
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        config = Config()
+        PaperAccount(balance=1000.0, max_exposure=1.0, config=config)
+        path = os.path.join("logs", "trade_log.csv")
+        assert os.path.exists(path)
+        with open(path, newline="") as f:
+            rows = list(csv.reader(f))
+    finally:
+        os.chdir(old_cwd)
+
+    expected_header = [
+        "timestamp",
+        "symbol",
+        "side",
+        "price",
+        "amount",
+        "profit",
+        "fee",
+        "duration",
+    ]
+    assert rows == [expected_header]
+
+
 def test_trade_log_contains_symbol(tmp_path):
     symbol = "TEST-USD"
     config = Config(fee_pct=0.0, spread_pct=0.0)
