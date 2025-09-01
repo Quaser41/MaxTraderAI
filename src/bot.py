@@ -63,6 +63,7 @@ class Config:
     spread_pct: float = 0.0005  # estimated bid/ask spread percentage
     min_edge_pct: float = 0.0015  # minimum edge required after costs
     min_price: float = 0.0  # minimum token price to include
+    debug_logging: bool = False  # enable detailed debug logs
 
 
 
@@ -407,6 +408,8 @@ class PaperAccount:
 class TraderBot:
     def __init__(self, config: Config):
         self.config = config
+        if self.config.debug_logging:
+            logging.getLogger().setLevel(logging.DEBUG)
         self.costs = config.fee_pct * 2 + config.spread_pct
         if config.take_profit_pct <= self.costs + config.min_edge_pct:
             logging.warning(
@@ -513,18 +516,43 @@ class TraderBot:
         ema_threshold = (
             vol * self.config.ema_threshold_mult if pd.notna(vol) else 0.0
         )
-        if (
-            ema_diff.iloc[-1] > ema_threshold
-            and ema_diff.iloc[-2] <= ema_threshold
-            and df["rsi"].iloc[-1] > buy_thresh
-        ):
+        ema_curr = ema_diff.iloc[-1]
+        ema_prev = ema_diff.iloc[-2]
+        rsi_now = df["rsi"].iloc[-1]
+        buy_ema = ema_curr > ema_threshold and ema_prev <= ema_threshold
+        buy_rsi = rsi_now > buy_thresh
+        if buy_ema and buy_rsi:
             return "buy"
-        if (
-            ema_diff.iloc[-1] < -ema_threshold
-            and ema_diff.iloc[-2] >= -ema_threshold
-            and df["rsi"].iloc[-1] < sell_thresh
-        ):
+        if not buy_ema:
+            logging.debug(
+                "Buy EMA condition failed: diff %.4f (prev %.4f) threshold %.4f",
+                ema_curr,
+                ema_prev,
+                ema_threshold,
+            )
+        if not buy_rsi:
+            logging.debug(
+                "Buy RSI condition failed: %.2f <= %.2f",
+                rsi_now,
+                buy_thresh,
+            )
+        sell_ema = ema_curr < -ema_threshold and ema_prev >= -ema_threshold
+        sell_rsi = rsi_now < sell_thresh
+        if sell_ema and sell_rsi:
             return "sell"
+        if not sell_ema:
+            logging.debug(
+                "Sell EMA condition failed: diff %.4f (prev %.4f) threshold -%.4f",
+                ema_curr,
+                ema_prev,
+                ema_threshold,
+            )
+        if not sell_rsi:
+            logging.debug(
+                "Sell RSI condition failed: %.2f >= %.2f",
+                rsi_now,
+                sell_thresh,
+            )
         return None
 
     def execute_trade(
@@ -532,6 +560,7 @@ class TraderBot:
     ) -> None:
         """Execute a paper trade through the PaperAccount."""
         costs = self.costs
+        max_capital = self.account.balance * self.config.max_exposure
         if side == "buy":
             atr = None
             if self.config.atr_multiplier > 0:
@@ -557,7 +586,7 @@ class TraderBot:
                     stop = price * (1 - self.config.stop_loss_pct)
                     target = price * (1 + self.config.take_profit_pct)
                 if edge < self.config.min_edge_pct:
-                    logging.info(
+                    logging.debug(
                         "Buy skipped: edge %.4f below minimum %.4f",
                         edge,
                         self.config.min_edge_pct,
@@ -576,7 +605,6 @@ class TraderBot:
                         )
                         return
                     amount = risk_amount / stop_distance
-                    max_capital = self.account.balance * self.config.max_exposure
                     cost = amount * entry_price
                     if cost > max_capital:
                         logging.info(
@@ -624,6 +652,10 @@ class TraderBot:
                     amount = self.config.max_tokens
                 if amount <= 0:
                     logging.warning("Buy skipped: non-positive amount %s", amount)
+                    logging.debug(
+                        "Buy skipped due to exposure limit %.2f",
+                        max_capital,
+                    )
                     return
                 self.account.buy(
                     price=price,
@@ -642,7 +674,7 @@ class TraderBot:
             if pos:
                 gain_pct = (price - pos["price"]) / pos["price"] - costs
                 if gain_pct < self.config.min_edge_pct:
-                    logging.info(
+                    logging.debug(
                         "Sell skipped: edge %.4f below minimum %.4f",
                         gain_pct,
                         self.config.min_edge_pct,
@@ -668,7 +700,7 @@ class TraderBot:
                     symbol, self.config.min_profit_threshold
                 )
                 if pnl < self.config.min_profit_threshold:
-                    logging.info(
+                    logging.debug(
                         "Skipping %s due to PnL %.2f below threshold %.2f",
                         symbol,
                         pnl,
