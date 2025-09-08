@@ -841,6 +841,24 @@ if __name__ == "__main__":
         help="Override minimum profit threshold (<=0 disables)",
         default=None,
     )
+    parser.add_argument(
+        "--timeframe",
+        type=str,
+        help="Override timeframe for candle data (e.g., 1m, 5m)",
+        default=None,
+    )
+    parser.add_argument(
+        "--ema-fast-span",
+        type=int,
+        help="Override fast EMA span",
+        default=None,
+    )
+    parser.add_argument(
+        "--ema-slow-span",
+        type=int,
+        help="Override slow EMA span",
+        default=None,
+    )
     args = parser.parse_args()
 
     cfg_kwargs = {}
@@ -852,6 +870,12 @@ if __name__ == "__main__":
             logging.error("Failed to load config file %s: %s", args.config, exc)
     if args.min_profit_threshold is not None:
         cfg_kwargs["min_profit_threshold"] = args.min_profit_threshold
+    if args.timeframe is not None:
+        cfg_kwargs["timeframe"] = args.timeframe
+    if args.ema_fast_span is not None:
+        cfg_kwargs["ema_fast_span"] = args.ema_fast_span
+    if args.ema_slow_span is not None:
+        cfg_kwargs["ema_slow_span"] = args.ema_slow_span
 
     config = Config(**cfg_kwargs)
 
