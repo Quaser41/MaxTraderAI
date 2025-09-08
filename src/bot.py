@@ -605,6 +605,11 @@ class TraderBot:
                     stop = price * (1 - self.config.stop_loss_pct)
                     target = price * (1 + self.config.take_profit_pct)
                 if edge < self.config.min_edge_pct:
+                    logging.info(
+                        "Buy skipped: edge %.4f below minimum %.4f",
+                        edge,
+                        self.config.min_edge_pct,
+                    )
                     logging.debug(
                         "Buy skipped: edge %.4f below minimum %.4f",
                         edge,

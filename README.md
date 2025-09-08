@@ -42,6 +42,11 @@ and compared against `take_profit_pct - min_edge_pct`. If the target is too
 small to cover costs and the desired edge, the bot logs a warning and skips
 trades.
 
+To guarantee enough cushion, choose a `take_profit_pct` that at least equals
+`fee_pct*2 + spread_pct + min_edge_pct`. This covers trading costs and still
+leaves the required edge. For example, with `fee_pct=0.001`, `spread_pct=0.0005`,
+and `min_edge_pct=0.01`, set `take_profit_pct` to at least `0.0125` (1.25%).
+
 
 The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0.1`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check.
 
