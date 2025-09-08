@@ -14,6 +14,8 @@ import shutil
 from datetime import datetime
 import logging
 import threading
+import argparse
+import json
 import pandas as pd
 import requests
 import ccxt
@@ -51,7 +53,8 @@ class Config:
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
     pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
-    min_profit_threshold: float = 0.1  # minimum profit to keep trading a symbol
+    min_profit_threshold: float = 0.1  # minimum profit to keep trading a symbol (<=0 disables)
+    pnl_cooldown: int = 0  # seconds to ignore a symbol after failing the PnL filter
     fee_pct: float = 0.001  # exchange fee percentage applied on sells
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
@@ -440,6 +443,8 @@ class TraderBot:
         self.symbol_fetcher.start()
         self.symbol_fetcher.wait_until_ready()
         self.last_summary = time.time()
+        self._pnl_block_until: Dict[str, float] = {}
+        self._pnl_offsets: Dict[str, float] = {}
 
     def _validate_trade_size(self) -> None:
         """Ensure configuration results in a positive trade size."""
@@ -710,17 +715,36 @@ class TraderBot:
                 if not symbol:
                     logging.warning("Encountered empty symbol; skipping trade execution")
                     continue
-                pnl = self.account.pnl_by_symbol(self.config.pnl_window).get(
-                    symbol, self.config.min_profit_threshold
-                )
-                if pnl < self.config.min_profit_threshold:
-                    logging.debug(
-                        "Skipping %s due to PnL %.2f below threshold %.2f",
-                        symbol,
-                        pnl,
-                        self.config.min_profit_threshold,
-                    )
-                    continue
+                if self.config.min_profit_threshold > 0:
+                    now = time.time()
+                    block_until = self._pnl_block_until.get(symbol, 0)
+                    if block_until > now:
+                        logging.debug(
+                            "Skipping %s during PnL cooldown for %.0f more seconds",
+                            symbol,
+                            block_until - now,
+                        )
+                        continue
+                    pnl_values = self.account.pnl_by_symbol(self.config.pnl_window)
+                    raw_pnl = pnl_values.get(symbol, 0.0)
+                    if block_until and block_until <= now:
+                        self._pnl_offsets[symbol] = raw_pnl
+                        self._pnl_block_until.pop(symbol, None)
+                    adjusted_pnl = raw_pnl - self._pnl_offsets.get(symbol, 0.0)
+                    if (
+                        adjusted_pnl < self.config.min_profit_threshold
+                        and adjusted_pnl != 0
+                    ):
+                        logging.debug(
+                            "Skipping %s due to PnL %.2f below threshold %.2f",
+                            symbol,
+                            adjusted_pnl,
+                            self.config.min_profit_threshold,
+                        )
+                        if self.config.pnl_cooldown > 0:
+                            self._pnl_block_until[symbol] = now + self.config.pnl_cooldown
+                            self._pnl_offsets[symbol] = raw_pnl
+                        continue
                 self.config.symbol = symbol
                 df = self.fetch_candles()
                 if df.empty:
@@ -809,7 +833,27 @@ class TraderBot:
 
 if __name__ == "__main__":
 
-    config = Config()
+    parser = argparse.ArgumentParser(description="Run TraderBot")
+    parser.add_argument("--config", type=str, help="Path to JSON config file", default=None)
+    parser.add_argument(
+        "--min-profit-threshold",
+        type=float,
+        help="Override minimum profit threshold (<=0 disables)",
+        default=None,
+    )
+    args = parser.parse_args()
+
+    cfg_kwargs = {}
+    if args.config:
+        try:
+            with open(args.config) as f:
+                cfg_kwargs.update(json.load(f))
+        except Exception as exc:  # pragma: no cover - config loading errors are logged
+            logging.error("Failed to load config file %s: %s", args.config, exc)
+    if args.min_profit_threshold is not None:
+        cfg_kwargs["min_profit_threshold"] = args.min_profit_threshold
+
+    config = Config(**cfg_kwargs)
 
     bot = TraderBot(config)
     try:
