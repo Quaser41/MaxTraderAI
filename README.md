@@ -30,8 +30,14 @@ pip install -r requirements.txt
 
 Configuration such as trading pair, exchange (default `binanceus`), stop‑loss/take‑profit percentages, drawdown limit, starting balance, and exposure limits can be adjusted in the `Config` dataclass inside `src/bot.py`. The exchange value determines which CCXT exchange provides price data.
 
-Set `debug_logging=True` in `Config` to enable additional `logging.debug` messages that explain when RSI/EMA conditions fail or when orders are skipped because of edge, PnL threshold, or exposure limits.
+Set `debug_logging=True` in `Config` to enable additional messages that explain when RSI/EMA conditions fail or when orders are skipped because of edge, PnL threshold, or exposure limits. When enabled, these diagnostics are logged at the `INFO` level so they appear with default logging settings.
 
+Common rejection messages and their meanings:
+
+- `Buy EMA condition failed` – the fast EMA has not crossed above the slow EMA by the required margin.
+- `Buy RSI condition failed` – the RSI value is at or below the configured buy threshold.
+- `Sell EMA condition failed` – the fast EMA has not crossed below the slow EMA by the required margin.
+- `Sell RSI condition failed` – the RSI value is at or above the configured sell threshold.
 
 `stake_usd` and `risk_pct` set trade size; at least one of them must be greater than zero. `max_tokens` also needs to be a positive number. The bot validates these minimum values on startup and raises an error if the resulting trade size is not positive.
 

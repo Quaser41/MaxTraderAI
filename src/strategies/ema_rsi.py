@@ -6,6 +6,8 @@ import pandas as pd
 
 def generate_signal(df: pd.DataFrame, config) -> Optional[str]:
     """Generate a moving average crossover signal filtered by RSI."""
+    log = logging.info if getattr(config, "debug_logging", False) else logging.debug
+
     df["ema_fast"] = df["close"].ewm(span=config.ema_fast_span).mean()
     df["ema_slow"] = df["close"].ewm(span=config.ema_slow_span).mean()
 
@@ -44,14 +46,14 @@ def generate_signal(df: pd.DataFrame, config) -> Optional[str]:
     if buy_ema and (not config.use_rsi_filter or buy_rsi):
         return "buy"
     if not buy_ema:
-        logging.debug(
+        log(
             "Buy EMA condition failed: diff %.4f (prev %.4f) threshold %.4f",
             ema_curr,
             ema_prev,
             ema_threshold,
         )
     if config.use_rsi_filter and not buy_rsi:
-        logging.debug(
+        log(
             "Buy RSI condition failed: %.2f <= %.2f",
             rsi_now,
             buy_thresh,
@@ -61,14 +63,14 @@ def generate_signal(df: pd.DataFrame, config) -> Optional[str]:
     if sell_ema and (not config.use_rsi_filter or sell_rsi):
         return "sell"
     if not sell_ema:
-        logging.debug(
+        log(
             "Sell EMA condition failed: diff %.4f (prev %.4f) threshold -%.4f",
             ema_curr,
             ema_prev,
             ema_threshold,
         )
     if config.use_rsi_filter and not sell_rsi:
-        logging.debug(
+        log(
             "Sell RSI condition failed: %.2f >= %.2f",
             rsi_now,
             sell_thresh,
