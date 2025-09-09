@@ -70,6 +70,7 @@ class Config:
     min_edge_pct: float = 0.0015  # minimum edge required after costs
     min_price: float = 0.0  # minimum token price to include
     debug_logging: bool = False  # enable detailed debug logs
+    symbols: Optional[List[str]] = None  # fallback symbols if auto-fetch fails
 
 
 
@@ -78,12 +79,17 @@ class SymbolFetcher:
     """Background thread that refreshes top-volume symbols from BinanceUS."""
 
     def __init__(
-        self, refresh: int = 3600, limit: int = 10, min_price: float = 0.0
+        self,
+        refresh: int = 3600,
+        limit: int = 10,
+        min_price: float = 0.0,
+        fallback_symbols: Optional[List[str]] = None,
     ) -> None:
         self.refresh = refresh
         self.limit = limit
         self.min_price = min_price
         self.symbols: List[str] = []
+        self.fallback_symbols = fallback_symbols or []
         self._ready = threading.Event()
         self.exchange = ccxt.binanceus()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -103,6 +109,8 @@ class SymbolFetcher:
                 "Symbol fetcher initialized with symbols: %s",
                 ", ".join(self.symbols),
             )
+        else:
+            logging.warning("Symbol fetcher did not return any symbols")
 
     def _run(self) -> None:
         while True:
@@ -136,8 +144,25 @@ class SymbolFetcher:
                     logging.info("Fetched symbols: %s", ", ".join(self.symbols))
                     if not self._ready.is_set():
                         self._ready.set()
+                else:
+                    logging.warning("No symbols fetched; will retry")
+                    if self.fallback_symbols and not self._ready.is_set():
+                        logging.warning(
+                            "Using fallback symbols: %s",
+                            ", ".join(self.fallback_symbols),
+                        )
+                        self.symbols = list(self.fallback_symbols)
+                        self._ready.set()
             except Exception as exc:
                 logging.error("Symbol fetch failed: %s", exc)
+                if self.fallback_symbols and not self.symbols:
+                    logging.warning(
+                        "Using fallback symbols due to fetch failure: %s",
+                        ", ".join(self.fallback_symbols),
+                    )
+                    self.symbols = list(self.fallback_symbols)
+                    if not self._ready.is_set():
+                        self._ready.set()
             time.sleep(self.refresh)
 
 
@@ -450,9 +475,24 @@ class TraderBot:
             config.starting_balance, config.max_exposure, config
         )
         self._validate_trade_size()
-        self.symbol_fetcher = SymbolFetcher(min_price=config.min_price)
+        self.symbol_fetcher = SymbolFetcher(
+            min_price=config.min_price, fallback_symbols=config.symbols
+        )
         self.symbol_fetcher.start()
         self.symbol_fetcher.wait_until_ready()
+        if not self.symbol_fetcher.symbols:
+            if config.symbols:
+                logging.warning(
+                    "Symbol fetcher returned no symbols; using fallback list: %s",
+                    ", ".join(config.symbols),
+                )
+                self.symbol_fetcher.symbols = list(config.symbols)
+            else:
+                logging.warning(
+                    "Symbol fetcher returned no symbols; defaulting to %s",
+                    config.symbol,
+                )
+                self.symbol_fetcher.symbols = [config.symbol]
         self.last_summary = time.time()
         self._pnl_block_until: Dict[str, float] = {}
         self._pnl_offsets: Dict[str, float] = {}
@@ -666,7 +706,21 @@ class TraderBot:
         """Run the trading loop."""
         self.account.print_summary()
         while True:
-            symbols = self.symbol_fetcher.symbols or [self.config.symbol]
+            if not self.symbol_fetcher.symbols:
+                if self.config.symbols:
+                    logging.warning(
+                        "Symbol list empty; falling back to user-supplied list: %s",
+                        ", ".join(self.config.symbols),
+                    )
+                    symbols = self.config.symbols
+                else:
+                    logging.warning(
+                        "Symbol list empty; using configured symbol %s",
+                        self.config.symbol,
+                    )
+                    symbols = [self.config.symbol]
+            else:
+                symbols = self.symbol_fetcher.symbols
             paused = False
             for symbol in symbols:
                 if not symbol:
@@ -804,6 +858,12 @@ if __name__ == "__main__":
         help="Reset per-symbol PnL filters and cooldowns",
     )
     parser.add_argument(
+        "--symbols",
+        type=str,
+        help="Comma-separated fallback symbols if auto-fetch fails",
+        default=None,
+    )
+    parser.add_argument(
         "--timeframe",
         type=str,
         help="Override timeframe for candle data (e.g., 1m, 5m)",
@@ -879,6 +939,8 @@ if __name__ == "__main__":
         cfg_kwargs["min_edge_pct"] = args.min_edge_pct
     if args.use_rsi_filter is not None:
         cfg_kwargs["use_rsi_filter"] = args.use_rsi_filter
+    if args.symbols is not None:
+        cfg_kwargs["symbols"] = [s.strip() for s in args.symbols.split(",") if s.strip()]
 
     config = Config(**cfg_kwargs)
 
