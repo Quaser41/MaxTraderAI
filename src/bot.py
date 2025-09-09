@@ -62,6 +62,7 @@ class Config:
     rsi_buy_threshold: float = 60.0  # minimum RSI for buy signals (55-70 typical; lower for tight targets)
     rsi_sell_threshold: float = 40.0  # maximum RSI for sell signals (30-45 typical; raise for tight targets)
     rsi_std_multiplier: float = 1.0  # std-dev multiplier for adaptive RSI
+    use_rsi_filter: bool = True  # apply RSI threshold checks to signals
     ema_threshold_mult: float = 0.0  # volatility factor for EMA crossover
     spread_pct: float = 0.0005  # estimated bid/ask spread percentage
     min_edge_pct: float = 0.0015  # minimum edge required after costs
@@ -540,7 +541,7 @@ class TraderBot:
         rsi_now = df["rsi"].iloc[-1]
         buy_ema = ema_curr > ema_threshold and ema_prev <= ema_threshold
         buy_rsi = rsi_now > buy_thresh
-        if buy_ema and buy_rsi:
+        if buy_ema and (not self.config.use_rsi_filter or buy_rsi):
             return "buy"
         if not buy_ema:
             logging.debug(
@@ -549,7 +550,7 @@ class TraderBot:
                 ema_prev,
                 ema_threshold,
             )
-        if not buy_rsi:
+        if self.config.use_rsi_filter and not buy_rsi:
             logging.debug(
                 "Buy RSI condition failed: %.2f <= %.2f",
                 rsi_now,
@@ -557,7 +558,7 @@ class TraderBot:
             )
         sell_ema = ema_curr < -ema_threshold and ema_prev >= -ema_threshold
         sell_rsi = rsi_now < sell_thresh
-        if sell_ema and sell_rsi:
+        if sell_ema and (not self.config.use_rsi_filter or sell_rsi):
             return "sell"
         if not sell_ema:
             logging.debug(
@@ -566,7 +567,7 @@ class TraderBot:
                 ema_prev,
                 ema_threshold,
             )
-        if not sell_rsi:
+        if self.config.use_rsi_filter and not sell_rsi:
             logging.debug(
                 "Sell RSI condition failed: %.2f >= %.2f",
                 rsi_now,
@@ -864,6 +865,13 @@ if __name__ == "__main__":
         help="Override slow EMA span",
         default=None,
     )
+    parser.add_argument(
+        "--no-rsi-filter",
+        action="store_false",
+        dest="use_rsi_filter",
+        help="Disable RSI threshold checks",
+        default=None,
+    )
     args = parser.parse_args()
 
     cfg_kwargs = {}
@@ -881,6 +889,8 @@ if __name__ == "__main__":
         cfg_kwargs["ema_fast_span"] = args.ema_fast_span
     if args.ema_slow_span is not None:
         cfg_kwargs["ema_slow_span"] = args.ema_slow_span
+    if args.use_rsi_filter is not None:
+        cfg_kwargs["use_rsi_filter"] = args.use_rsi_filter
 
     config = Config(**cfg_kwargs)
 

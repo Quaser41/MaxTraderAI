@@ -43,3 +43,21 @@ def test_rsi_threshold(monkeypatch):
 
     bot_allow_sell = TraderBot(Config(symbol="T-USD", rsi_sell_threshold=50))
     assert bot_allow_sell.generate_signal(df_sell) == "sell"
+
+
+def test_disable_rsi_filter_allows_signals(monkeypatch):
+    monkeypatch.setattr(SymbolFetcher, "start", lambda self: None)
+    monkeypatch.setattr(SymbolFetcher, "wait_until_ready", lambda self, timeout=None: None)
+
+    df_buy = make_df([100] * 50 + [110])
+    df_sell = make_df([100] * 50 + [90])
+
+    bot_buy = TraderBot(
+        Config(symbol="T-USD", rsi_buy_threshold=100, use_rsi_filter=False)
+    )
+    assert bot_buy.generate_signal(df_buy) == "buy"
+
+    bot_sell = TraderBot(
+        Config(symbol="T-USD", rsi_sell_threshold=-1, use_rsi_filter=False)
+    )
+    assert bot_sell.generate_signal(df_sell) == "sell"
