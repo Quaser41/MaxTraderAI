@@ -55,7 +55,7 @@ class Config:
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
     pnl_window: int = 10  # number of closed trades to evaluate per-symbol PnL
-    min_profit_threshold: float = 0.1  # minimum profit to keep trading a symbol (<=0 disables)
+    min_profit_threshold: float = 0.0  # minimum profit to keep trading a symbol (<=0 disables)
     pnl_cooldown: int = 0  # seconds to ignore a symbol after failing the PnL filter
     fee_pct: float = 0.001  # exchange fee percentage applied on sells
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
@@ -457,6 +457,11 @@ class TraderBot:
         self._pnl_block_until: Dict[str, float] = {}
         self._pnl_offsets: Dict[str, float] = {}
 
+    def reset_pnl(self) -> None:
+        """Clear per-symbol PnL filters so all symbols are eligible for trading."""
+        self._pnl_offsets.clear()
+        self._pnl_block_until.clear()
+
     def _validate_trade_size(self) -> None:
         """Ensure configuration results in a positive trade size."""
         price = 1.0  # use nominal price; ratios are price-invariant
@@ -794,6 +799,11 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--reset-pnl",
+        action="store_true",
+        help="Reset per-symbol PnL filters and cooldowns",
+    )
+    parser.add_argument(
         "--timeframe",
         type=str,
         help="Override timeframe for candle data (e.g., 1m, 5m)",
@@ -857,6 +867,8 @@ if __name__ == "__main__":
     config = Config(**cfg_kwargs)
 
     bot = TraderBot(config)
+    if args.reset_pnl:
+        bot.reset_pnl()
     try:
         bot.run()
     except Exception as exc:

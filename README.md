@@ -49,7 +49,7 @@ leaves the required edge. For example, with `fee_pct=0.001`, `spread_pct=0.0005`
 and `min_edge_pct=0.01`, set `take_profit_pct` to at least `0.0125` (1.25%).
 
 
-The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0.1`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check.
+The bot tracks profit and loss by symbol. Use `pnl_window` to set the number of recent closed trades to evaluate and `min_profit_threshold` (default `0`) to require a minimum cumulative profit before continuing to trade a symbol. A symbol must earn at least this amount over the configured window before further trades are allowed; otherwise it is skipped. Set the threshold to `0` to disable this check or adjust it at runtime with `--min-profit-threshold`. Use `--reset-pnl` to clear any PnL filters and cooldowns.
 
 The strategy also calculates a 14-period Relative Strength Index (RSI) and only allows a trade when this value is above `rsi_buy_threshold` (default 60) for buys or below `rsi_sell_threshold` (default 40) for sells. The RSI period and thresholds are configurable via `rsi_period`, `rsi_buy_threshold`, and `rsi_sell_threshold` in `Config`. Typical RSI thresholds range from about 55–70 for buys and 30–45 for sells. Lowering the buy threshold or raising the sell threshold increases signal frequency, which can help when running with tight profit targets.
 
