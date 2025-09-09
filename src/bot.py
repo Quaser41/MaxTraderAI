@@ -16,6 +16,7 @@ import logging
 import threading
 import argparse
 import json
+import importlib
 import pandas as pd
 import requests
 import ccxt
@@ -38,6 +39,7 @@ class Config:
     symbol: str = "BTC-USD"
     timeframe: str = "5m"
     exchange: str = "binanceus"
+    strategy: str = "ema_rsi"  # name of strategy module under strategies package
     stake_usd: float = 100.0  # trade size in USD (must be > 0 if used)
     risk_pct: float = 0.01  # fraction of equity to risk per trade (must be > 0 if used)
     max_tokens: float = float("inf")  # maximum token quantity per trade (must be > 0)
@@ -428,6 +430,14 @@ class TraderBot:
         self.config = config
         if self.config.debug_logging:
             logging.getLogger().setLevel(logging.DEBUG)
+        try:
+            self.strategy = importlib.import_module(
+                f"strategies.{self.config.strategy}"
+            )
+        except Exception as exc:  # pragma: no cover - config errors
+            raise ValueError(
+                f"Could not load strategy '{self.config.strategy}': {exc}"
+            ) from exc
         self.costs = config.fee_pct * 2 + config.spread_pct
         if config.take_profit_pct <= self.costs + config.min_edge_pct:
             logging.warning(
@@ -503,77 +513,8 @@ class TraderBot:
             return pd.DataFrame()
 
     def generate_signal(self, df: pd.DataFrame) -> Optional[str]:
-        """Generate a moving average crossover signal filtered by RSI."""
-        df["ema_fast"] = df["close"].ewm(span=self.config.ema_fast_span).mean()
-        df["ema_slow"] = df["close"].ewm(span=self.config.ema_slow_span).mean()
-
-        delta = df["close"].diff()
-        gain = delta.clip(lower=0)
-        loss = -delta.clip(upper=0)
-        avg_gain = gain.rolling(window=self.config.rsi_period).mean()
-        avg_loss = loss.rolling(window=self.config.rsi_period).mean()
-        rs = avg_gain / avg_loss
-        df["rsi"] = 100 - (100 / (1 + rs))
-
-        rsi_series = df["rsi"]
-        rsi_mean = rsi_series.rolling(self.config.rsi_period).mean().iloc[-1]
-        rsi_std = rsi_series.rolling(self.config.rsi_period).std().iloc[-1]
-        if pd.isna(rsi_mean) or pd.isna(rsi_std):
-            buy_thresh = self.config.rsi_buy_threshold
-            sell_thresh = self.config.rsi_sell_threshold
-        else:
-            buy_thresh = max(
-                self.config.rsi_buy_threshold,
-                rsi_mean + self.config.rsi_std_multiplier * rsi_std,
-            )
-            sell_thresh = min(
-                self.config.rsi_sell_threshold,
-                rsi_mean - self.config.rsi_std_multiplier * rsi_std,
-            )
-
-        ema_diff = df["ema_fast"] - df["ema_slow"]
-        vol = df["close"].pct_change().rolling(self.config.ema_slow_span).std().iloc[-1]
-        ema_threshold = (
-            vol * self.config.ema_threshold_mult if pd.notna(vol) else 0.0
-        )
-        ema_curr = ema_diff.iloc[-1]
-        ema_prev = ema_diff.iloc[-2]
-        rsi_now = df["rsi"].iloc[-1]
-        buy_ema = ema_curr > ema_threshold and ema_prev <= ema_threshold
-        buy_rsi = rsi_now > buy_thresh
-        if buy_ema and (not self.config.use_rsi_filter or buy_rsi):
-            return "buy"
-        if not buy_ema:
-            logging.debug(
-                "Buy EMA condition failed: diff %.4f (prev %.4f) threshold %.4f",
-                ema_curr,
-                ema_prev,
-                ema_threshold,
-            )
-        if self.config.use_rsi_filter and not buy_rsi:
-            logging.debug(
-                "Buy RSI condition failed: %.2f <= %.2f",
-                rsi_now,
-                buy_thresh,
-            )
-        sell_ema = ema_curr < -ema_threshold and ema_prev >= -ema_threshold
-        sell_rsi = rsi_now < sell_thresh
-        if sell_ema and (not self.config.use_rsi_filter or sell_rsi):
-            return "sell"
-        if not sell_ema:
-            logging.debug(
-                "Sell EMA condition failed: diff %.4f (prev %.4f) threshold -%.4f",
-                ema_curr,
-                ema_prev,
-                ema_threshold,
-            )
-        if self.config.use_rsi_filter and not sell_rsi:
-            logging.debug(
-                "Sell RSI condition failed: %.2f >= %.2f",
-                rsi_now,
-                sell_thresh,
-            )
-        return None
+        """Delegate to the configured strategy module."""
+        return self.strategy.generate_signal(df, self.config)
 
     def execute_trade(
         self, side: str, price: float, timestamp: pd.Timestamp, symbol: str
@@ -871,6 +812,12 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--strategy",
+        type=str,
+        help="Strategy module name (e.g., ema_rsi, rsi_mean)",
+        default=None,
+    )
+    parser.add_argument(
         "--min-edge-pct",
         type=float,
         help="Override minimum edge required after costs",
@@ -900,6 +847,8 @@ if __name__ == "__main__":
         cfg_kwargs["ema_fast_span"] = args.ema_fast_span
     if args.ema_slow_span is not None:
         cfg_kwargs["ema_slow_span"] = args.ema_slow_span
+    if args.strategy is not None:
+        cfg_kwargs["strategy"] = args.strategy
     if args.min_edge_pct is not None:
         cfg_kwargs["min_edge_pct"] = args.min_edge_pct
     if args.use_rsi_filter is not None:
