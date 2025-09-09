@@ -49,8 +49,8 @@ class Config:
     take_profit_pct: float = 0.04  # 4% take profit target
     atr_multiplier: float = 1.0  # ATR multiple for stop-loss and take-profit
     max_drawdown_pct: float = 0.2  # stop trading if drawdown exceeds 20%
-    ema_fast_span: int = 20  # fast EMA span for crossover (5-20 typical; shorten for more signals)
-    ema_slow_span: int = 50  # slow EMA span for crossover (20-100 typical; shorten with tight targets)
+    ema_fast_span: int = 20  # fast EMA span for crossover (5-20 typical; shorten for more signals) --override with --ema-fast-span
+    ema_slow_span: int = 50  # slow EMA span for crossover (20-100 typical; shorten with tight targets) --override with --ema-slow-span
     drawdown_cooldown: int = 300  # seconds to pause after max drawdown
     stop_on_drawdown: bool = True  # stop bot instead of pausing on drawdown
     summary_interval: int = 300  # seconds between status summaries
@@ -61,8 +61,8 @@ class Config:
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
     rsi_period: int = 14  # period for RSI calculation
-    rsi_buy_threshold: float = 60.0  # minimum RSI for buy signals (55-70 typical; lower for tight targets)
-    rsi_sell_threshold: float = 40.0  # maximum RSI for sell signals (30-45 typical; raise for tight targets)
+    rsi_buy_threshold: float = 60.0  # minimum RSI for buy signals (55-70 typical; lower for tight targets) --override with --rsi-buy-threshold
+    rsi_sell_threshold: float = 40.0  # maximum RSI for sell signals (30-45 typical; raise for tight targets) --override with --rsi-sell-threshold
     rsi_std_multiplier: float = 1.0  # std-dev multiplier for adaptive RSI
     use_rsi_filter: bool = True  # apply RSI threshold checks to signals
     ema_threshold_mult: float = 0.0  # volatility factor for EMA crossover
@@ -822,6 +822,18 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--rsi-buy-threshold",
+        type=float,
+        help="Override RSI buy threshold",
+        default=None,
+    )
+    parser.add_argument(
+        "--rsi-sell-threshold",
+        type=float,
+        help="Override RSI sell threshold",
+        default=None,
+    )
+    parser.add_argument(
         "--strategy",
         type=str,
         help="Strategy module name (e.g., ema_rsi, rsi_mean)",
@@ -857,6 +869,10 @@ if __name__ == "__main__":
         cfg_kwargs["ema_fast_span"] = args.ema_fast_span
     if args.ema_slow_span is not None:
         cfg_kwargs["ema_slow_span"] = args.ema_slow_span
+    if args.rsi_buy_threshold is not None:
+        cfg_kwargs["rsi_buy_threshold"] = args.rsi_buy_threshold
+    if args.rsi_sell_threshold is not None:
+        cfg_kwargs["rsi_sell_threshold"] = args.rsi_sell_threshold
     if args.strategy is not None:
         cfg_kwargs["strategy"] = args.strategy
     if args.min_edge_pct is not None:
