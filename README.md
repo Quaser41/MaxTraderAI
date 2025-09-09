@@ -37,10 +37,11 @@ Set `debug_logging=True` in `Config` to enable additional `logging.debug` messag
 
 Because every trade pays fees and crosses the bid/ask spread, the bot only
 enters positions when the profit target exceeds these costs plus a minimum
-required edge. Total trading costs are computed as `fee_pct*2 + spread_pct`
-and compared against `take_profit_pct - min_edge_pct`. If the target is too
-small to cover costs and the desired edge, the bot logs a warning and skips
-trades.
+required edge. Total trading costs (`costs`) are computed as `fee_pct*2 + spread_pct`.
+The trade's `edge` is `take_profit_pct - costs`, and a trade executes only when
+`edge >= min_edge_pct`. If the edge is too small, the bot logs a warning and skips
+the trade. You can temporarily relax this requirement with the
+`--min-edge-pct` command-line option.
 
 To guarantee enough cushion, choose a `take_profit_pct` that at least equals
 `fee_pct*2 + spread_pct + min_edge_pct`. This covers trading costs and still

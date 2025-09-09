@@ -699,6 +699,11 @@ class TraderBot:
             if pos:
                 gain_pct = (price - pos["price"]) / pos["price"] - costs
                 if gain_pct < self.config.min_edge_pct:
+                    logging.info(
+                        "Sell skipped: edge %.4f below minimum %.4f",
+                        gain_pct,
+                        self.config.min_edge_pct,
+                    )
                     logging.debug(
                         "Sell skipped: edge %.4f below minimum %.4f",
                         gain_pct,
@@ -866,6 +871,12 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--min-edge-pct",
+        type=float,
+        help="Override minimum edge required after costs",
+        default=None,
+    )
+    parser.add_argument(
         "--no-rsi-filter",
         action="store_false",
         dest="use_rsi_filter",
@@ -889,6 +900,8 @@ if __name__ == "__main__":
         cfg_kwargs["ema_fast_span"] = args.ema_fast_span
     if args.ema_slow_span is not None:
         cfg_kwargs["ema_slow_span"] = args.ema_slow_span
+    if args.min_edge_pct is not None:
+        cfg_kwargs["min_edge_pct"] = args.min_edge_pct
     if args.use_rsi_filter is not None:
         cfg_kwargs["use_rsi_filter"] = args.use_rsi_filter
 
