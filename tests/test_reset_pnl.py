@@ -20,7 +20,11 @@ class DummyFetcher:
 
 def test_reset_pnl(monkeypatch):
     # Avoid network calls by stubbing out SymbolFetcher
-    monkeypatch.setattr(bot_module, "SymbolFetcher", lambda min_price=0.0: DummyFetcher())
+    monkeypatch.setattr(
+        bot_module,
+        "SymbolFetcher",
+        lambda min_price=0.0, fallback_symbols=None: DummyFetcher(),
+    )
 
     cfg = Config(min_profit_threshold=0.1)
     bot = TraderBot(cfg)
