@@ -903,7 +903,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--strategy",
         type=str,
-        help="Strategy module name (e.g., ema_rsi, rsi_mean)",
+        help="Strategy module name (e.g., ema_rsi, rsi_mean, bollinger_breakout)",
         default=None,
     )
     parser.add_argument(
