@@ -59,6 +59,7 @@ class Config:
     pnl_cooldown: int = 0  # seconds to ignore a symbol after failing the PnL filter
     fee_pct: float = 0.001  # exchange fee percentage applied on sells
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
+    break_even_pct: float = 0.01  # gain required to move stop-loss to entry
     max_holding_minutes: int = 60  # maximum duration to hold a position
     rsi_period: int = 14  # period for RSI calculation
     atr_period: int = 14  # period for ATR calculation
@@ -770,6 +771,15 @@ class TraderBot:
                     pos["highest_price"] = max(
                         pos.get("highest_price", pos["price"]), price
                     )
+                    if (
+                        price
+                        >= pos["price"] * (1 + self.config.break_even_pct)
+                        and (
+                            pos.get("stop_loss") is None
+                            or pos.get("stop_loss") < pos["price"]
+                        )
+                    ):
+                        pos["stop_loss"] = pos["price"]
                     trail_pct = pos.get("trailing_stop_pct")
                     trailing_stop_price = (
                         pos["highest_price"] * (1 - trail_pct) if trail_pct else None
@@ -913,6 +923,12 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--break-even-pct",
+        type=float,
+        help="Override break-even threshold for stop-loss adjustment",
+        default=None,
+    )
+    parser.add_argument(
         "--no-rsi-filter",
         action="store_false",
         dest="use_rsi_filter",
@@ -946,6 +962,8 @@ if __name__ == "__main__":
         cfg_kwargs["strategy"] = args.strategy
     if args.min_edge_pct is not None:
         cfg_kwargs["min_edge_pct"] = args.min_edge_pct
+    if args.break_even_pct is not None:
+        cfg_kwargs["break_even_pct"] = args.break_even_pct
     if args.use_rsi_filter is not None:
         cfg_kwargs["use_rsi_filter"] = args.use_rsi_filter
     if args.symbols is not None:
