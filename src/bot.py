@@ -61,6 +61,7 @@ class Config:
     trailing_stop_pct: float = 0.01  # percentage for trailing stop (0 to disable)
     max_holding_minutes: int = 60  # maximum duration to hold a position
     rsi_period: int = 14  # period for RSI calculation
+    atr_period: int = 14  # period for ATR calculation
     rsi_buy_threshold: float = 60.0  # minimum RSI for buy signals (55-70 typical; lower for tight targets) --override with --rsi-buy-threshold
     rsi_sell_threshold: float = 40.0  # maximum RSI for sell signals (30-45 typical; raise for tight targets) --override with --rsi-sell-threshold
     rsi_std_multiplier: float = 1.0  # std-dev multiplier for adaptive RSI
@@ -577,7 +578,7 @@ class TraderBot:
                     low_close = (df["low"] - df["close"].shift()).abs()
                     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
                     atr = (
-                        tr.rolling(window=self.config.rsi_period, min_periods=1)
+                        tr.rolling(window=self.config.atr_period, min_periods=1)
                         .mean()
                         .iloc[-1]
                     )
@@ -894,6 +895,12 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--atr-period",
+        type=int,
+        help="Override ATR period",
+        default=None,
+    )
+    parser.add_argument(
         "--strategy",
         type=str,
         help="Strategy module name (e.g., ema_rsi, rsi_mean)",
@@ -933,6 +940,8 @@ if __name__ == "__main__":
         cfg_kwargs["rsi_buy_threshold"] = args.rsi_buy_threshold
     if args.rsi_sell_threshold is not None:
         cfg_kwargs["rsi_sell_threshold"] = args.rsi_sell_threshold
+    if args.atr_period is not None:
+        cfg_kwargs["atr_period"] = args.atr_period
     if args.strategy is not None:
         cfg_kwargs["strategy"] = args.strategy
     if args.min_edge_pct is not None:
